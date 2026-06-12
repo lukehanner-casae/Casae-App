@@ -108,6 +108,9 @@ export interface PnLSummary {
   income: number
   expenses: number
   net: number
+  /** Every account line, not just the top 5 — needed to diff reports. */
+  incomeLines: PnLAccountLine[]
+  expenseLines: PnLAccountLine[]
   topIncome: PnLAccountLine[]
   topExpenses: PnLAccountLine[]
 }
@@ -194,6 +197,8 @@ export function parsePnLReport(response: XeroReportResponse): PnLSummary {
     income,
     expenses,
     net,
+    incomeLines,
+    expenseLines,
     topIncome: topLines(incomeLines),
     topExpenses: topLines(expenseLines),
   }
@@ -210,16 +215,65 @@ export function combinePnLSummaries(summaries: PnLSummary[]): PnLSummary {
     for (const lines of lists) {
       for (const l of lines) byName.set(l.name, (byName.get(l.name) ?? 0) + l.amount)
     }
-    return topLines(
-      [...byName.entries()].map(([name, amount]) => ({ name, amount })),
-    )
+    return [...byName.entries()].map(([name, amount]) => ({ name, amount }))
   }
+  const incomeLines = mergeLines(summaries.map((s) => s.incomeLines))
+  const expenseLines = mergeLines(summaries.map((s) => s.expenseLines))
   return {
     income: summaries.reduce((s, x) => s + x.income, 0),
     expenses: summaries.reduce((s, x) => s + x.expenses, 0),
     net: summaries.reduce((s, x) => s + x.net, 0),
-    topIncome: mergeLines(summaries.map((s) => s.topIncome)),
-    topExpenses: mergeLines(summaries.map((s) => s.topExpenses)),
+    incomeLines,
+    expenseLines,
+    topIncome: topLines(incomeLines),
+    topExpenses: topLines(expenseLines),
+  }
+}
+
+/**
+ * Residual P&L left after subtracting the tracked per-property summaries from
+ * the whole-org report: amounts with no tracking option (bank fees, software,
+ * bookkeeping, …) plus any partially-tracked remainder. Lines are diffed by
+ * account name; sub-cent residue from float noise is dropped.
+ */
+export function overheadPnLSummary(
+  overall: PnLSummary,
+  tracked: PnLSummary[],
+): PnLSummary {
+  const residualLines = (
+    overallLines: PnLAccountLine[],
+    trackedLists: PnLAccountLine[][],
+  ): PnLAccountLine[] => {
+    const byName = new Map(overallLines.map((l) => [l.name, l.amount]))
+    for (const lines of trackedLists) {
+      for (const l of lines) byName.set(l.name, (byName.get(l.name) ?? 0) - l.amount)
+    }
+    return [...byName.entries()]
+      .map(([name, amount]) => ({ name, amount }))
+      .filter((l) => Math.abs(l.amount) >= 0.005)
+  }
+  const residual = (total: number, parts: number[]): number => {
+    const n = total - parts.reduce((s, x) => s + x, 0)
+    return Math.abs(n) < 0.005 ? 0 : n
+  }
+  const income = residual(overall.income, tracked.map((t) => t.income))
+  const expenses = residual(overall.expenses, tracked.map((t) => t.expenses))
+  const incomeLines = residualLines(
+    overall.incomeLines,
+    tracked.map((t) => t.incomeLines),
+  )
+  const expenseLines = residualLines(
+    overall.expenseLines,
+    tracked.map((t) => t.expenseLines),
+  )
+  return {
+    income,
+    expenses,
+    net: income - expenses,
+    incomeLines,
+    expenseLines,
+    topIncome: topLines(incomeLines),
+    topExpenses: topLines(expenseLines),
   }
 }
 

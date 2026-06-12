@@ -26,16 +26,20 @@ import {
   useXeroConnection,
   useXeroPnL,
   useXeroTrackingMap,
+  type XeroPnLRow,
 } from '@/hooks/use-xero'
 import { cn } from '@/lib/utils'
 import { formatAud, formatDateTime, todayIso } from '@/lib/format'
 import {
   combinePnLSummaries,
+  overheadPnLSummary,
   XERO_RANGE_LABELS,
   xeroRangeDates,
   type PnLAccountLine,
   type XeroRangeKey,
 } from '@/lib/xero'
+
+const OVERHEADS_KEY = '__overheads__'
 
 function AccountList({
   title,
@@ -93,8 +97,8 @@ export default function XeroPnLPanel() {
       properties?.find((p) => p.id === id)?.display_name
     // One row per property — several tracking options (e.g. BR1/BR2) can map
     // to the same property, so group and sum them.
-    const groups = new Map<string, NonNullable<typeof pnl.data>>()
-    for (const r of pnl.data ?? []) {
+    const groups = new Map<string, XeroPnLRow[]>()
+    for (const r of pnl.data?.rows ?? []) {
       const list = groups.get(r.propertyId) ?? []
       list.push(r)
       groups.set(r.propertyId, list)
@@ -109,14 +113,22 @@ export default function XeroPnLPanel() {
       .sort((a, b) => a.propertyName.localeCompare(b.propertyName))
   }, [pnl.data, properties])
 
-  const totals = rows.reduce(
-    (acc, r) => ({
-      income: acc.income + r.summary.income,
-      expenses: acc.expenses + r.summary.expenses,
-      net: acc.net + r.summary.net,
-    }),
-    { income: 0, expenses: 0, net: 0 },
+  // Untracked overheads (bank fees, software, bookkeeping, …) = whole-org
+  // P&L minus the tracked per-property reports. The portfolio total is the
+  // org P&L itself, so it reflects true bottom-line profit.
+  const overheads = useMemo(
+    () =>
+      pnl.data
+        ? overheadPnLSummary(
+            pnl.data.overall,
+            pnl.data.rows.map((r) => r.summary),
+          )
+        : null,
+    [pnl.data],
   )
+  const hasOverheads =
+    !!overheads && (overheads.income !== 0 || overheads.expenses !== 0)
+  const totals = pnl.data?.overall ?? { income: 0, expenses: 0, net: 0 }
 
   if (connectionLoading || mapLoading) return <ListSkeleton rows={4} />
 
@@ -332,6 +344,64 @@ export default function XeroPnLPanel() {
                   )}
                 </Fragment>
               ))}
+              {hasOverheads && overheads && (
+                <Fragment>
+                  <TableRow
+                    className="cursor-pointer"
+                    onClick={() =>
+                      setExpanded((prev) => ({
+                        ...prev,
+                        [OVERHEADS_KEY]: !prev[OVERHEADS_KEY],
+                      }))
+                    }
+                  >
+                    <TableCell className="text-muted-foreground">
+                      {expanded[OVERHEADS_KEY] ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium text-navy">Overheads</span>
+                      <span className="ml-2 font-body text-xs text-muted-foreground">
+                        not tagged to a property
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatAud(overheads.income)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatAud(overheads.expenses)}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        'text-right font-medium tabular-nums',
+                        overheads.net >= 0 ? 'text-sage' : 'text-destructive',
+                      )}
+                    >
+                      {formatAud(overheads.net)}
+                    </TableCell>
+                  </TableRow>
+                  {expanded[OVERHEADS_KEY] && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell />
+                      <TableCell colSpan={4}>
+                        <div className="grid grid-cols-1 gap-4 py-1 sm:grid-cols-2">
+                          <AccountList
+                            title="Top income accounts"
+                            lines={overheads.topIncome}
+                          />
+                          <AccountList
+                            title="Top expense accounts"
+                            lines={overheads.topExpenses}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              )}
               <TableRow className="bg-muted/50 font-medium hover:bg-muted/50">
                 <TableCell />
                 <TableCell className="text-navy">Portfolio total</TableCell>

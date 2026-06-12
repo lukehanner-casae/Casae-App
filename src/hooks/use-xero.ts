@@ -147,6 +147,13 @@ export interface XeroPnLRow {
   summary: PnLSummary
 }
 
+export interface XeroPnLResult {
+  rows: XeroPnLRow[]
+  /** Whole-org P&L for the same range (no tracking filter) — includes
+   * untracked overheads that no per-property report picks up. */
+  overall: PnLSummary
+}
+
 export function useXeroPnL(
   from: string | null,
   to: string | null,
@@ -165,14 +172,13 @@ export function useXeroPnL(
     ],
     enabled: enabled && !!from && !!to && !!map && mapped.length > 0,
     staleTime: 1000 * 60 * 10,
-    queryFn: async (): Promise<XeroPnLRow[]> => {
+    queryFn: async (): Promise<XeroPnLResult> => {
       // Sequential with a gap — Xero allows only 5 concurrent calls and
       // 60/min per app, so one P&L request per property at a time.
+      const gap = () => new Promise((resolve) => setTimeout(resolve, 500))
       const rows: XeroPnLRow[] = []
       for (const option of mapped) {
-        if (rows.length > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        }
+        if (rows.length > 0) await gap()
         const params = new URLSearchParams({
           fromDate: from!,
           toDate: to!,
@@ -189,7 +195,13 @@ export function useXeroPnL(
           summary: parsePnLReport(report),
         })
       }
-      return rows
+      // Whole-org P&L (no tracking filter) — captures untracked overheads.
+      await gap()
+      const overallParams = new URLSearchParams({ fromDate: from!, toDate: to! })
+      const overallReport = await xeroApiGet<XeroReportResponse>(
+        `api.xro/2.0/Reports/ProfitAndLoss?${overallParams.toString()}`,
+      )
+      return { rows, overall: parsePnLReport(overallReport) }
     },
   })
 }
