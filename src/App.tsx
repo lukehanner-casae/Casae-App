@@ -8,6 +8,8 @@ import PropertyDetailPage from '@/pages/PropertyDetailPage'
 import LodgersPage from '@/pages/LodgersPage'
 import LodgerProfilePage from '@/pages/LodgerProfilePage'
 import MaintenancePage from '@/pages/MaintenancePage'
+import InspectionsPage from '@/pages/InspectionsPage'
+import InspectionDetailPage from '@/pages/InspectionDetailPage'
 import CleaningPage from '@/pages/CleaningPage'
 import FinancialsPage from '@/pages/FinancialsPage'
 import PipelinePage from '@/pages/PipelinePage'
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="lodgers" element={<LodgersPage />} />
           <Route path="lodgers/:id" element={<LodgerProfilePage />} />
           <Route path="maintenance" element={<MaintenancePage />} />
+          <Route path="inspections" element={<InspectionsPage />} />
+          <Route path="inspections/:id" element={<InspectionDetailPage />} />
           <Route path="cleaning" element={<CleaningPage />} />
           <Route path="financials" element={<FinancialsPage />} />
           <Route path="pipeline" element={<PipelinePage />} />

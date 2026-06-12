@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarPlus, Check, Plus, Repeat } from 'lucide-react'
+import { CalendarPlus, Check, Plus, Repeat, Sparkles } from 'lucide-react'
+import EmptyState from '@/components/EmptyState'
+import ListSkeleton from '@/components/ListSkeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -421,25 +423,26 @@ export default function CleansPanel({
         </div>
       </div>
 
-      <div className="rounded-md border border-stone bg-card">
-        {isLoading ? (
-          <p className="p-4 font-body text-sm text-muted-foreground">
-            Loading…
-          </p>
-        ) : filtered.length === 0 ? (
-          <p className="p-4 font-body text-sm text-muted-foreground">
-            No cleans match.
-          </p>
-        ) : (
-          filtered.map((clean) => (
+      {isLoading ? (
+        <ListSkeleton />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="No cleans scheduled"
+          description="Nothing matches the current filters. Schedule a one-off clean or set up a recurring routine."
+          action={<AddCleanDialog fixedPropertyId={fixedPropertyId} />}
+        />
+      ) : (
+        <div className="rounded-md border border-stone bg-card">
+          {filtered.map((clean) => (
             <CleanRow
               key={clean.id}
               clean={clean}
               showProperty={!fixedPropertyId}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

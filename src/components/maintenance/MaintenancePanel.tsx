@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Plus, Wrench } from 'lucide-react'
+import EmptyState from '@/components/EmptyState'
+import ListSkeleton from '@/components/ListSkeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +32,7 @@ import {
 } from '@/hooks/use-maintenance'
 import {
   appendNote,
+  daysSince,
   formatAud,
   formatDate,
   parseNotes,
@@ -376,6 +379,26 @@ function JobDetailDialog({
   )
 }
 
+/** Whole days a job has been open; shown on every non-completed job. */
+function DaysOpenBadge({ job }: { job: JobWithRefs }) {
+  if (job.status !== 'open' && job.status !== 'in-progress') return null
+  const days = daysSince(job.created_at.slice(0, 10)) ?? 0
+  return (
+    <span
+      className={cn(
+        'font-body text-xs tabular-nums',
+        days > 14
+          ? 'font-semibold text-vacant'
+          : days > 7
+            ? 'font-medium text-warning'
+            : 'text-muted-foreground',
+      )}
+    >
+      {days}d open
+    </span>
+  )
+}
+
 function JobRow({ job, showProperty }: { job: JobWithRefs; showProperty: boolean }) {
   const updateJob = useUpdateJob()
   const [completing, setCompleting] = useState(false)
@@ -384,7 +407,10 @@ function JobRow({ job, showProperty }: { job: JobWithRefs; showProperty: boolean
   const advance = (status: JobStatus) =>
     updateJob.mutate(
       { id: job.id, status },
-      { onError: (e) => toast.error(e.message) },
+      {
+        onSuccess: () => toast.success('Job started'),
+        onError: (e) => toast.error(e.message),
+      },
     )
 
   return (
@@ -403,6 +429,7 @@ function JobRow({ job, showProperty }: { job: JobWithRefs; showProperty: boolean
           {formatDate(job.created_at)}
         </p>
       </button>
+      <DaysOpenBadge job={job} />
       <Badge className={cn('capitalize', priorityClass[job.priority])}>
         {job.priority}
       </Badge>
@@ -514,21 +541,22 @@ export default function MaintenancePanel({
         </div>
       </div>
 
-      <div className="rounded-md border border-stone bg-card">
-        {isLoading ? (
-          <p className="p-4 font-body text-sm text-muted-foreground">
-            Loading…
-          </p>
-        ) : filtered.length === 0 ? (
-          <p className="p-4 font-body text-sm text-muted-foreground">
-            No maintenance jobs match.
-          </p>
-        ) : (
-          filtered.map((job) => (
+      {isLoading ? (
+        <ListSkeleton />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Wrench}
+          title="No maintenance jobs"
+          description="Nothing matches the current filters. Log a job to track it from report to completion."
+          action={<CreateJobDialog fixedPropertyId={fixedPropertyId} />}
+        />
+      ) : (
+        <div className="rounded-md border border-stone bg-card">
+          {filtered.map((job) => (
             <JobRow key={job.id} job={job} showProperty={!fixedPropertyId} />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

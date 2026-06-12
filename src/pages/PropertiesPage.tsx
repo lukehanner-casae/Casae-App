@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Wrench } from 'lucide-react'
+import { AlertTriangle, Building2, Wrench } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import EmptyState from '@/components/EmptyState'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useProperties } from '@/hooks/use-properties'
 import { useMaintenanceJobs } from '@/hooks/use-maintenance'
 import { formatAud, daysUntil } from '@/lib/format'
@@ -140,7 +143,32 @@ export default function PropertiesPage() {
         description="Weekly economics and room occupancy across the portfolio."
       />
       {isLoading ? (
-        <p className="font-body text-sm text-muted-foreground">Loading…</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-7 w-1/2" />
+                <Skeleton className="h-4 w-1/3" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (properties ?? []).length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="No properties yet"
+          description="Secured properties will appear here. Work the acquisition pipeline to land the first one."
+          action={
+            <Button asChild size="sm">
+              <Link to="/pipeline">View pipeline</Link>
+            </Button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(properties ?? []).map((p) => (

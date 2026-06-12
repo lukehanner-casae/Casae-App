@@ -162,6 +162,36 @@ export interface PropertyProspect {
   created_at: string
 }
 
+export type InspectionCondition = 'good' | 'fair' | 'poor'
+
+export interface Inspection {
+  id: string
+  property_id: string
+  scheduled_date: string | null
+  conducted_date: string | null
+  conducted_by: string | null
+  overall_condition: InspectionCondition | null
+  notes: string | null
+  photo_paths: string[]
+  follow_up_required: boolean
+  follow_up_notes: string | null
+  created_at: string
+}
+
+export interface Profile {
+  id: string
+  display_name: string | null
+  email: string | null
+  role: string
+  created_at: string
+}
+
+export interface AppSetting {
+  key: string
+  value: string | null
+  updated_at: string
+}
+
 // Common joined shapes
 export type RoomWithLodgers = Room & { lodgers: Lodger[] }
 export type PropertyWithRooms = Property & { rooms: RoomWithLodgers[] }

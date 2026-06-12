@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { addDaysIso } from '@/lib/format'
+import { addDaysIso, todayIso } from '@/lib/format'
 import type { Clean, Property, Recurrence } from '@/lib/types'
 
 export type CleanWithProperty = Clean & { property: Property | null }
@@ -45,7 +45,8 @@ export function useUpdateClean() {
 
 /**
  * Recurring setup: generates scheduled cleans 8 weeks forward from the start
- * date at the chosen cadence (weekly / fortnightly).
+ * date at the chosen cadence (weekly / fortnightly). Re-running replaces any
+ * future unstarted cleans of the same cadence instead of duplicating them.
  */
 export function useCreateRecurringCleans() {
   const qc = useQueryClient()
@@ -61,6 +62,15 @@ export function useCreateRecurringCleans() {
       recurrence: Exclude<Recurrence, 'none'>
       assignedTo: string | null
     }) => {
+      const { error: deleteError } = await supabase
+        .from('cleans')
+        .delete()
+        .eq('property_id', propertyId)
+        .eq('recurrence', recurrence)
+        .eq('status', 'scheduled')
+        .gte('scheduled_date', todayIso())
+      if (deleteError) throw deleteError
+
       const stepDays = recurrence === 'weekly' ? 7 : 14
       const rows: Partial<Clean>[] = []
       for (let day = 0; day <= 56; day += stepDays) {

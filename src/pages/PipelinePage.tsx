@@ -5,7 +5,7 @@ import PageHeader from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/auth/AuthProvider'
+import { useProfiles, profileName } from '@/hooks/use-profiles'
 import { useProperties } from '@/hooks/use-properties'
 import {
   PRIORITY_SUBURBS,
@@ -41,6 +42,7 @@ const PORTFOLIO_TARGET = 20
 
 function CreateProspectDialog() {
   const { user } = useAuth()
+  const { data: profiles } = useProfiles()
   const createProspect = useCreateProspect()
   const [open, setOpen] = useState(false)
   const [address, setAddress] = useState('')
@@ -49,7 +51,7 @@ function CreateProspectDialog() {
   const [estHeadLease, setEstHeadLease] = useState('')
   const [estRoomIncome, setEstRoomIncome] = useState('')
   const [source, setSource] = useState('')
-  const [assignToMe, setAssignToMe] = useState(true)
+  const [assignedTo, setAssignedTo] = useState(() => user?.id ?? 'unassigned')
   const [notes, setNotes] = useState('')
 
   const projectedMargin =
@@ -73,7 +75,7 @@ function CreateProspectDialog() {
         source: (source || null) as PropertyProspect['source'],
         stage: 'prospect',
         first_contact_date: todayIso(),
-        assigned_to_user_id: assignToMe ? (user?.id ?? null) : null,
+        assigned_to_user_id: assignedTo === 'unassigned' ? null : assignedTo,
         notes: notes.trim() || null,
       },
       {
@@ -191,13 +193,22 @@ function CreateProspectDialog() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="assign-me"
-              checked={assignToMe}
-              onCheckedChange={(v) => setAssignToMe(v === true)}
-            />
-            <Label htmlFor="assign-me">Assign to me</Label>
+          <div className="space-y-1.5">
+            <Label>Assigned to</Label>
+            <Select value={assignedTo} onValueChange={setAssignedTo}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {(profiles ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.display_name || p.email}
+                    {p.id === user?.id ? ' (you)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="prospect-notes">Notes</Label>
@@ -223,6 +234,7 @@ function CreateProspectDialog() {
 
 function ProspectCard({ prospect }: { prospect: PropertyProspect }) {
   const { user } = useAuth()
+  const { data: profiles } = useProfiles()
   const updateProspect = useUpdateProspect()
 
   return (
@@ -262,7 +274,7 @@ function ProspectCard({ prospect }: { prospect: PropertyProspect }) {
           {prospect.assigned_to_user_id
             ? prospect.assigned_to_user_id === user?.id
               ? ' · assigned to you'
-              : ' · assigned'
+              : ` · ${profileName(profiles, prospect.assigned_to_user_id)}`
             : ''}
         </p>
         <Select
@@ -270,7 +282,13 @@ function ProspectCard({ prospect }: { prospect: PropertyProspect }) {
           onValueChange={(v) =>
             updateProspect.mutate(
               { id: prospect.id, stage: v as ProspectStage },
-              { onError: (e) => toast.error(e.message) },
+              {
+                onSuccess: () =>
+                  toast.success(
+                    `Moved to ${PROSPECT_STAGES.find((s) => s.value === v)?.label ?? v}`,
+                  ),
+                onError: (e) => toast.error(e.message),
+              },
             )
           }
         >
@@ -291,7 +309,7 @@ function ProspectCard({ prospect }: { prospect: PropertyProspect }) {
 }
 
 export default function PipelinePage() {
-  const { data: prospects } = useProspects()
+  const { data: prospects, isLoading } = useProspects()
   const { data: properties } = useProperties()
   const [suburbFilter, setSuburbFilter] = useState('all')
 
@@ -389,6 +407,13 @@ export default function PipelinePage() {
       </div>
 
       {/* Kanban board */}
+      {isLoading ? (
+        <div className="flex gap-3 overflow-hidden">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-48 w-60 shrink-0" />
+          ))}
+        </div>
+      ) : (
       <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
         <div className="flex min-w-max gap-3">
           {PROSPECT_STAGES.map((stage) => {
@@ -417,6 +442,7 @@ export default function PipelinePage() {
           })}
         </div>
       </div>
+      )}
     </div>
   )
 }

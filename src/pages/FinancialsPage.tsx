@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Receipt } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import EmptyState from '@/components/EmptyState'
+import ListSkeleton from '@/components/ListSkeleton'
 import ExpenseFormDialog from '@/components/expenses/ExpenseFormDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -127,6 +129,16 @@ function ExpensesTab() {
         </div>
       </div>
 
+      {isLoading ? (
+        <ListSkeleton rows={5} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title="No expenses logged"
+          description="Nothing matches the current filter. Log expenses with receipts to keep the books tidy for Xero."
+          action={<ExpenseFormDialog />}
+        />
+      ) : (
       <div className="overflow-x-auto rounded-md border border-stone bg-card">
         <Table>
           <TableHeader>
@@ -141,20 +153,7 @@ function ExpensesTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
-                  No expenses logged yet.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((expense) => (
+            {filtered.map((expense) => (
                 <TableRow key={expense.id}>
                   <TableCell>{formatDate(expense.expense_date)}</TableCell>
                   <TableCell>{expense.property?.display_name ?? '—'}</TableCell>
@@ -179,11 +178,11 @@ function ExpensesTab() {
                     <HubdocToggle />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   )
 }

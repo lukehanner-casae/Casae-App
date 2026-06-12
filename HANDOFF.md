@@ -1,6 +1,6 @@
-# Casae Living Ops — Handoff (Sessions 2–8)
+# Casae Living Ops — Handoff (Sessions 2–8 + A–F)
 
-Built June 2026. All sessions from the build brief are complete; `npm run build` and `npm run lint` are clean.
+Built June 2026. All sessions from both build briefs are complete; `npm run build` and `npm run lint` are clean. Live at casae-ops.netlify.app.
 
 ## What was built
 
@@ -13,20 +13,35 @@ Built June 2026. All sessions from the build brief are complete; `npm run build`
 - **Expenses & Fitout** (`/financials`): expense form with the 8 fixed categories and receipt upload (JPEG/PNG/PDF ≤ 10MB) to the private `receipts` bucket at `{property_id}/{YYYY-MM}/{timestamp}-{filename}`; per-property running totals and portfolio summary; HubDoc toggle visible but disabled ("Configure in Settings to enable"). Fitout items are logged per property (property detail → Fitout tab); the portfolio table ranks all 5 properties by payback period (fitout ÷ weekly margin, 1 dp).
 - **Pipeline** (`/pipeline`): 7-stage kanban (stage changed via dropdown on each card), projected margin auto-calculated from estimated head lease and room income, priority-suburb filter, stage counts + average margin for negotiating+, portfolio progress bar.
 - **Contacts** (`/contacts`): type filter, append-only notes log (adding a note also bumps last-contact date), add/edit forms. 6 contacts pre-seeded; Joe Nardizzi (landlord) and Choice Estates (agent) are linked to TH1, TH8 and TH5.
-- **Navigation**: desktop sidebar shows all sections; the mobile bottom bar shows Dashboard, Properties, Maintenance and a More page per the brand spec.
+- **Navigation**: desktop sidebar shows all sections; the mobile bottom bar shows Dashboard, Properties, Maintenance and a More page per the brand spec (new sections — Inspections, Settings — appear under More automatically).
+
+## Sessions A–F (second brief)
+
+- **Profiles** (migration 004): `profiles` (id → auth.users, display_name, email, role default 'staff') with a security-definer trigger that inserts a row on auth user creation; existing user backfilled. RLS: everyone authenticated can read, users update only their own row. The pipeline "assigned to" is now a dropdown of team members and cards show the assignee's display name.
+- **Recurring cleans fix**: generating a recurring series first deletes future (`scheduled_date >= today`) cleans with status `scheduled` for the same property + cadence, so re-running replaces instead of duplicating. Completed/past cleans are never touched.
+- **Settings** (`/settings`): change display name (writes to profiles); change password — re-authenticates with the current password via `signInWithPassword` before `auth.updateUser` (Supabase doesn't verify the old password itself); email shown read-only. Integrations: Xero "Not connected" with a disabled Connect button (tooltip: "Coming soon — set up your Xero OAuth credentials first"); HubDoc intake email persisted to `app_settings` (key `hubdoc_email`), Test button toasts "Configure Resend API key first". Notification toggles are UI-only placeholders.
+- **Documents** (migration 005): private `documents` bucket (20MB, JPEG/PNG/PDF) + `documents` metadata table (property_id, optional lodger_id, type, filename, storage_path, notes, uploaded_by/at). Paths: `{property_id}/{type-slug}/{timestamp}-{filename}`. Property detail has a Documents tab; the lodger profile shows only that lodger's documents (upload there auto-links lodger + property). Download uses a 60s signed URL; delete removes the row then the file, with a confirm dialog. If the metadata insert fails after upload, the orphaned file is removed.
+- **Inspections** (`/inspections`, migration 006): property + date-range filters; create form captures scheduled/conducted dates, conducted by (free text), condition (good/fair/poor), notes, multiple photos (stored in the documents bucket under `inspections/{inspection_id}/`, paths kept in a `photo_paths` text[] column), follow-up flag + notes. Detail page shows everything, a photo grid (signed URLs, click to open), delete (also removes photos), and "Create maintenance job from follow-up" which opens a pre-filled job dialog (title, description from follow-up + inspection notes, property fixed) and navigates to /maintenance on save.
+- **UX polish**: Skeleton loaders everywhere data fetches (shared `ListSkeleton` for list panels); `EmptyState` (icon, message, CTA) on every list; `ErrorBoundary` wraps the routed page in AppShell (keyed by pathname so it resets on navigation) with Try again / Go to dashboard; success toasts on all mutations including pipeline stage moves and job starts; `ConfirmDialog` before all deletes; lodger directory search bar filters by name (first/last/partner) across all properties, bypassing the property/status filters while typing; maintenance jobs show a days-open indicator (grey, amber > 7d, red > 14d).
+- **PWA** (vite-plugin-pwa, `autoUpdate`): manifest name "Casae Ops" / short name "Casae", navy theme + cream background, standalone display. Icons generated from `public/pwa-icon.svg` (navy square, serif C, sage underline) → pwa-192/512 + apple-touch-icon. Service worker precaches the app shell only — Supabase data is never cached, so figures stay live. `InstallPrompt` banner (mobile only, above the tab bar) appears on `beforeinstallprompt`, hides when already installed (standalone check) or previously dismissed (localStorage `casae-install-dismissed`).
 
 ## Verified
 
 End-to-end against the live Supabase project (via a temporary test login, since removed): password login returns a session; RLS lets an authenticated user read all 5 properties → 18 rooms → lodgers (17/18 occupied, income $6,900, head lease $5,690, margin $1,210/wk — matches the dashboard); maintenance job and clean inserts succeed; receipts bucket accepts and serves an upload. Test rows/files were deleted afterwards.
 
+Sessions A–F verification (12 Jun 2026): migrations 004–006 applied to the remote and confirmed by query — profiles backfilled with the existing user (display_name defaults to the email's local part), `on_auth_user_created` trigger present, `documents` bucket exists with a 20MB limit, `inspections` and `app_settings` tables live with RLS. `npm run build` (including PWA service-worker generation, 15 precached entries) and `npm run lint` both clean.
+
 ## Manual steps needed
 
-1. **Team logins** — only `luke.hanner@crosspondcapital.com` exists in Supabase Auth. Create Erin, Brenna and Kaylin in the dashboard (Auth → Users → Add user, with "auto confirm").
+1. **Team logins** — only `luke.hanner@crosspondcapital.com` exists in Supabase Auth. Create Erin, Brenna and Kaylin in the dashboard (Auth → Users → Add user, with "auto confirm"). A profiles row is created automatically; each person can set their display name in Settings → Account.
 2. **Confirm placeholder seed data** — TBC lodger names/rooms (Scarborough, TH8), bond amounts and received dates, move-in dates, head-lease start/end dates (all currently null, so cards show "Lease end not set").
-3. **Future integrations env vars** (not yet wired, for the Edge Function/Netlify sessions): `HUBDOC_EMAIL` (confirm which of the two intake addresses is live), `RESEND_API_KEY`, Xero OAuth client ID/secret.
+3. **Future integrations env vars** (not yet wired, for the Edge Function/Netlify sessions): `RESEND_API_KEY`, Xero OAuth client ID/secret. The HubDoc intake email is now entered in Settings → Integrations (stored in `app_settings`) — confirm which of the two intake addresses is live.
 4. **Netlify** — add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to site env; SPA redirect (`/* → /index.html 200`) needed when deploying.
+5. **PWA icon** — `public/pwa-icon.svg` is a simple navy/serif-C placeholder rendered with a system serif (not actual Cormorant Garamond). Swap in a designed icon when there is one and re-export pwa-192.png / pwa-512.png / apple-touch-icon.png.
 
-## Most likely to need fixing
+## Known gaps / next steps
 
-1. **Pipeline "assigned to"** — the schema stores `assigned_to_user_id` (auth.users FK) but the client can't list other users, so the form only offers "assign to me" and cards show "assigned to you / assigned". A `profiles` table (id, display_name) synced from auth would fix this properly.
-2. **Recurring cleans duplication** — the 8-week generator inserts blindly; running it twice for the same property/cadence creates duplicate scheduled cleans. Either dedupe on insert or add a "clear future routine cleans" action.
+1. **Notifications** (Settings) are UI-only — wiring them needs an Edge Function + Resend.
+2. **Xero connect button** is intentionally disabled until OAuth credentials exist.
+3. **Inspection photos** can only be added at creation; the detail page doesn't yet support appending photos (the `useUpdateInspection` hook already handles it if a UI is added).
+4. Both fixes from the previous handoff (pipeline "assigned to", recurring-cleans duplication) are done — see Sessions A–F above.

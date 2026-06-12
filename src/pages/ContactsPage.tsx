@@ -1,8 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Building2, Mail, Pencil, Phone, Plus } from 'lucide-react'
+import { Building2, Contact as ContactIcon, Mail, Pencil, Phone, Plus } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import EmptyState from '@/components/EmptyState'
+import ListSkeleton from '@/components/ListSkeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -404,7 +406,22 @@ export default function ContactsPage() {
       </div>
 
       {isLoading ? (
-        <p className="font-body text-sm text-muted-foreground">Loading…</p>
+        <ListSkeleton rows={4} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={ContactIcon}
+          title="No contacts match"
+          description="Keep landlords, agents and contractors in one place with a running contact log."
+          action={
+            <ContactFormDialog
+              trigger={
+                <Button size="sm">
+                  <Plus className="h-4 w-4" /> Add contact
+                </Button>
+              }
+            />
+          }
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((contact) => (
@@ -414,11 +431,6 @@ export default function ContactsPage() {
               linkedProperties={linkedFor(contact.id)}
             />
           ))}
-          {filtered.length === 0 && (
-            <p className="font-body text-sm text-muted-foreground">
-              No contacts match.
-            </p>
-          )}
         </div>
       )}
     </div>

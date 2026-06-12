@@ -2,9 +2,11 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import MaintenancePanel from '@/components/maintenance/MaintenancePanel'
 import CleansPanel from '@/components/cleaning/CleansPanel'
+import DocumentsPanel from '@/components/documents/DocumentsPanel'
 import FitoutPanel from '@/components/fitout/FitoutPanel'
 import { useProperty } from '@/hooks/use-properties'
 import { activeLodger } from '@/lib/metrics'
@@ -134,7 +136,12 @@ export default function PropertyDetailPage() {
 
   if (isLoading) {
     return (
-      <p className="font-body text-sm text-muted-foreground">Loading…</p>
+      <div className="mx-auto max-w-5xl space-y-4">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-10 w-1/2" />
+        <Skeleton className="h-5 w-2/3" />
+        <Skeleton className="h-40 w-full" />
+      </div>
     )
   }
   if (!property) {
@@ -209,6 +216,7 @@ export default function PropertyDetailPage() {
           <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
           <TabsTrigger value="cleans">Cleans</TabsTrigger>
           <TabsTrigger value="fitout">Fitout</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
         <TabsContent value="rooms" className="mt-4 space-y-3">
           {rooms.map((room) => (
@@ -223,6 +231,9 @@ export default function PropertyDetailPage() {
         </TabsContent>
         <TabsContent value="fitout" className="mt-4">
           <FitoutPanel property={property} />
+        </TabsContent>
+        <TabsContent value="documents" className="mt-4">
+          <DocumentsPanel propertyId={property.id} />
         </TabsContent>
       </Tabs>
     </div>

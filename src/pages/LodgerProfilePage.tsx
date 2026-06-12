@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, DoorOpen, FileText, Pencil } from 'lucide-react'
+import { ArrowLeft, DoorOpen, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import DocumentsPanel from '@/components/documents/DocumentsPanel'
 import LodgerFormDialog from '@/components/lodgers/LodgerFormDialog'
 import MoveOutDialog from '@/components/lodgers/MoveOutDialog'
 import { useAuth } from '@/auth/AuthProvider'
@@ -36,7 +38,14 @@ export default function LodgerProfilePage() {
   const [note, setNote] = useState('')
 
   if (isLoading) {
-    return <p className="font-body text-sm text-muted-foreground">Loading…</p>
+    return (
+      <div className="mx-auto max-w-4xl space-y-4">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-10 w-1/2" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
   }
   if (!lodger) {
     return (
@@ -220,14 +229,10 @@ export default function LodgerProfilePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-3 rounded-md border border-dashed border-stone p-6">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <p className="font-body text-sm text-muted-foreground">
-              Document storage (lodging agreements, condition reports) arrives
-              with the Document Storage feature. Files currently live in
-              SharePoint.
-            </p>
-          </div>
+          <DocumentsPanel
+            propertyId={lodger.room?.property?.id}
+            lodgerId={lodger.id}
+          />
         </CardContent>
       </Card>
     </div>

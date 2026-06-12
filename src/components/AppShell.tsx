@@ -1,11 +1,14 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import InstallPrompt from '@/components/InstallPrompt'
 import { navItems, mobileNavItems } from '@/components/nav-items'
 import { cn } from '@/lib/utils'
 
 export default function AppShell() {
   const { user, signOut } = useAuth()
+  const location = useLocation()
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -62,9 +65,13 @@ export default function AppShell() {
       {/* Main content */}
       <div className="flex w-full flex-1 flex-col md:pl-[200px]">
         <main className="flex-1 px-4 pb-24 pt-6 md:px-8 md:pb-8">
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
+
+      <InstallPrompt />
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden">

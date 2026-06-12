@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Plus, Search, Users, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import EmptyState from '@/components/EmptyState'
+import ListSkeleton from '@/components/ListSkeleton'
 import BondFloatPanel from '@/components/lodgers/BondFloatPanel'
 import LodgerFormDialog from '@/components/lodgers/LodgerFormDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -55,9 +58,22 @@ export default function LodgersPage() {
   const { data: properties } = useProperties()
   const [propertyFilter, setPropertyFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('current')
+  const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
     let list = lodgers ?? []
+    // Search spans every property regardless of the property filter.
+    const query = search.trim().toLowerCase()
+    if (query) {
+      list = list.filter((l) =>
+        [l.first_name, l.last_name, l.partner_name]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query),
+      )
+      return list
+    }
     if (propertyFilter !== 'all') {
       list = list.filter((l) => l.room?.property_id === propertyFilter)
     }
@@ -65,7 +81,7 @@ export default function LodgersPage() {
       list = list.filter((l) => l.status === statusFilter)
     }
     return list
-  }, [lodgers, propertyFilter, statusFilter])
+  }, [lodgers, propertyFilter, statusFilter, search])
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -85,6 +101,16 @@ export default function LodgersPage() {
       <BondFloatPanel lodgers={lodgers ?? []} />
 
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-[240px]">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search lodgers by name…"
+            className="pl-8"
+            aria-label="Search lodgers"
+          />
+        </div>
         <Select value={propertyFilter} onValueChange={setPropertyFilter}>
           <SelectTrigger className="w-[170px]">
             <SelectValue />
@@ -111,6 +137,28 @@ export default function LodgersPage() {
         </Select>
       </div>
 
+      {isLoading ? (
+        <ListSkeleton rows={6} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No lodgers match"
+          description={
+            search.trim()
+              ? `No lodger names match "${search.trim()}".`
+              : 'Nothing matches the current filters. Add a lodger to start tracking their tenancy and bond.'
+          }
+          action={
+            <LodgerFormDialog
+              trigger={
+                <Button size="sm">
+                  <Plus className="h-4 w-4" /> Add lodger
+                </Button>
+              }
+            />
+          }
+        />
+      ) : (
       <div className="overflow-x-auto rounded-md border border-stone bg-card">
         <Table>
           <TableHeader>
@@ -127,20 +175,7 @@ export default function LodgersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-muted-foreground">
-                  No lodgers match.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((lodger) => (
+            {filtered.map((lodger) => (
                 <TableRow key={lodger.id}>
                   <TableCell>
                     <Link
@@ -195,11 +230,11 @@ export default function LodgersPage() {
                   </TableCell>
                   <TableCell>{lodger.phone ?? '—'}</TableCell>
                 </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   )
 }

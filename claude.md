@@ -43,6 +43,32 @@ Cormorant Garamond for headings. Jost for body.
   auto projected margin, priority-suburb filter, summary + progress bar.
 - Session 8 ✓ Contacts CRM (/contacts): type filter, append-only notes (bumps
   last-contact date), property links (Joe Nardizzi / Choice Estates → Oak Lane).
+- Session A ✓ Fixes: `profiles` table (migration 004) synced from auth.users via
+  trigger + backfill; pipeline "assigned to" is now a team-member dropdown
+  (src/hooks/use-profiles.ts). Recurring cleans generator now replaces future
+  unstarted cleans for the same property/cadence instead of duplicating.
+- Session B ✓ Settings (/settings): Account (display name → profiles, change
+  password with current-password re-auth), Integrations (Xero placeholder
+  disabled w/ tooltip; HubDoc intake email saved to `app_settings` key/value
+  table — migration 004; test button stubbed), Notifications placeholder
+  toggles (UI only).
+- Session C ✓ Documents: private `documents` bucket (migration 005, 20MB,
+  JPEG/PNG/PDF) + `documents` table; files at {property_id}/{type}/{ts}-{file}.
+  DocumentsPanel reused on property detail Documents tab and lodger profile
+  (filtered to lodger). 7 doc types incl. Head Lease / Lodging Agreement / BAS.
+- Session D ✓ Inspections (/inspections, nav under Maintenance, migration 006):
+  property + date-range filters, create form with multi-photo upload (documents
+  bucket, inspections/{id}/ path), detail page with photo grid, follow-up flag,
+  and "Create maintenance job from follow-up" pre-filled dialog.
+- Session E ✓ UX polish: shadcn Skeleton loaders (ListSkeleton helper), shared
+  EmptyState with CTA, ErrorBoundary around the routed page (remounts per
+  route), success toasts everywhere, ConfirmDialog before deletes, lodger name
+  search (spans all properties), days-open indicator on maintenance jobs
+  (amber >7d, red >14d).
+- Session F ✓ PWA via vite-plugin-pwa (autoUpdate): manifest "Casae Ops" /
+  "Casae", navy theme, icons from public/pwa-icon.svg (pwa-192/512,
+  apple-touch-icon), InstallPrompt banner on mobile (beforeinstallprompt,
+  dismissal in localStorage).
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).
@@ -50,5 +76,6 @@ Cormorant Garamond for headings. Jost for body.
   `[date — user.email] text` via appendNote()/parseNotes() in src/lib/format.ts.
 - See HANDOFF.md for verification results, manual steps and known gaps.
 - TODO (manual): create remaining team logins (Erin, Brenna, Kaylin) in Supabase
-  Auth dashboard — Luke's exists. Confirm TBC lodger names + placeholder bond data
+  Auth dashboard — Luke's exists (a profiles row auto-creates on signup; display
+  names are set in Settings). Confirm TBC lodger names + placeholder bond data
   in seed (flagged in lodger notes).

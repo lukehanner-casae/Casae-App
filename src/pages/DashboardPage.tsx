@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CalendarClock, DoorOpen, Sparkles, Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useProperties } from '@/hooks/use-properties'
 import { useLodgers } from '@/hooks/use-lodgers'
 import { useMaintenanceJobs } from '@/hooks/use-maintenance'
@@ -106,7 +107,7 @@ type UpcomingEvent = {
 }
 
 export default function DashboardPage() {
-  const { data: properties } = useProperties()
+  const { data: properties, isLoading } = useProperties()
   const { data: lodgers } = useLodgers()
   const { data: jobs } = useMaintenanceJobs()
   const { data: cleans } = useCleans()
@@ -192,7 +193,16 @@ export default function DashboardPage() {
 
       {/* Portfolio pulse */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {pulse.map(({ label, value, sub, signature }) => (
+        {isLoading
+          ? Array.from({ length: 4 }, (_, i) => (
+              <Card key={i}>
+                <CardContent className="space-y-3 pt-5">
+                  <Skeleton className="mx-auto h-3 w-2/3" />
+                  <Skeleton className="mx-auto h-12 w-1/2" />
+                </CardContent>
+              </Card>
+            ))
+          : pulse.map(({ label, value, sub, signature }) => (
           <Card key={label}>
             <CardContent className="pt-5 text-center">
               <p className="font-body text-xs uppercase tracking-wide text-muted-foreground">
@@ -216,7 +226,7 @@ export default function DashboardPage() {
               ) : null}
             </CardContent>
           </Card>
-        ))}
+          ))}
       </div>
 
       {/* Vacancy cost ticker */}
