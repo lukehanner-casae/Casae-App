@@ -19,7 +19,7 @@ export const XERO_AUTHORIZE_URL =
 export const XERO_CONNECTIONS_URL = 'https://api.xero.com/connections'
 // offline_access is required for Xero to issue a refresh token.
 export const XERO_SCOPES =
-  'openid profile email accounting.reports.read accounting.settings.read offline_access'
+  'openid profile email offline_access accounting.reports.read accounting.settings'
 
 export const SETTING_KEYS = {
   accessToken: 'xero_access_token',
