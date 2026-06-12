@@ -69,6 +69,27 @@ Cormorant Garamond for headings. Jost for body.
   "Casae", navy theme, icons from public/pwa-icon.svg (pwa-192/512,
   apple-touch-icon), InstallPrompt banner on mobile (beforeinstallprompt,
   dismissal in localStorage).
+- Session G ✓ Xero integration. Netlify Functions (netlify/functions/, shared
+  helpers in _lib/xero.ts, netlify.toml + tsconfig.functions.json so tsc -b
+  type-checks them): xero-auth (GET ?state= → 302 to Xero authorize so the
+  client id stays server-side; POST {code} exchanges + resolves tenant via
+  /connections), xero-refresh, xero-api (read-only GET proxy for
+  api.xro/2.0/*, auto-refreshes, retries once on 401). Tokens AES-256-GCM
+  encrypted (key = sha256(XERO_CLIENT_SECRET)) in app_settings keys
+  xero_access_token / xero_refresh_token / xero_tenant_id / xero_token_expiry
+  (+ xero_org_name plain); functions act as the calling user via their
+  Supabase JWT (anon key + bearer), so RLS still applies. Frontend:
+  src/lib/xero.ts (P&L report parser, date ranges, tracking-map types),
+  src/hooks/use-xero.ts, /settings/xero/callback route (state-nonce check,
+  StrictMode-safe single exchange). Settings → Integrations: live
+  Connect/Disconnect + tracking-category → property mapping saved as JSON in
+  app_settings key xero_tracking_map (kept on disconnect). Financials →
+  default "Xero P&L" tab: range presets + custom dates, per-property
+  income/expenses/net rows (expand for top-5 accounts), portfolio totals,
+  last-synced + Sync now. PWA navigateFallbackDenylist now also skips
+  /.netlify/* so the OAuth redirect isn't swallowed by the service worker.
+  Note: offline_access scope is requested in addition to the read scopes —
+  Xero won't issue refresh tokens without it.
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).

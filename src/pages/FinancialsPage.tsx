@@ -5,6 +5,7 @@ import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ListSkeleton from '@/components/ListSkeleton'
 import ExpenseFormDialog from '@/components/expenses/ExpenseFormDialog'
+import XeroPnLPanel from '@/components/financials/XeroPnLPanel'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -265,13 +266,17 @@ export default function FinancialsPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Financials"
-        description="Expense log with receipts, and fitout payback across the portfolio. Xero panel arrives with the integration session."
+        description="Per-property P&L from Xero, the expense log with receipts, and fitout payback across the portfolio."
       />
-      <Tabs defaultValue="expenses">
+      <Tabs defaultValue="xero">
         <TabsList>
+          <TabsTrigger value="xero">Xero P&amp;L</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="fitout">Fitout Tracker</TabsTrigger>
         </TabsList>
+        <TabsContent value="xero" className="mt-4">
+          <XeroPnLPanel />
+        </TabsContent>
         <TabsContent value="expenses" className="mt-4">
           <ExpensesTab />
         </TabsContent>

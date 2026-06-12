@@ -15,6 +15,7 @@ import FinancialsPage from '@/pages/FinancialsPage'
 import PipelinePage from '@/pages/PipelinePage'
 import ContactsPage from '@/pages/ContactsPage'
 import SettingsPage from '@/pages/SettingsPage'
+import XeroCallbackPage from '@/pages/XeroCallbackPage'
 import MorePage from '@/pages/MorePage'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/xero/callback" element={<XeroCallbackPage />} />
           <Route path="more" element={<MorePage />} />
         </Route>
       </Route>

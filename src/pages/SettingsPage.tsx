@@ -14,16 +14,28 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import ConfirmDialog from '@/components/ConfirmDialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/auth/AuthProvider'
 import { useProfiles, useUpdateProfile } from '@/hooks/use-profiles'
+import { useProperties } from '@/hooks/use-properties'
 import { useAppSetting, useSetAppSetting } from '@/hooks/use-settings'
+import {
+  TRACKING_MAP_KEY,
+  useXeroConnection,
+  useXeroDisconnect,
+  useXeroTrackingCategories,
+  useXeroTrackingMap,
+} from '@/hooks/use-xero'
 import { supabase } from '@/lib/supabase'
+import { XERO_STATE_STORAGE_KEY, type XeroTrackingMap } from '@/lib/xero'
 
 function AccountSection() {
   const { user } = useAuth()
@@ -173,6 +185,220 @@ function AccountSection() {
   )
 }
 
+/** Match each Xero tracking category option to a property in the app. */
+function XeroTrackingMapConfig() {
+  const { data, isLoading, error } = useXeroTrackingCategories(true)
+  const { data: savedMap } = useXeroTrackingMap()
+  const { data: properties } = useProperties()
+  const setSetting = useSetAppSetting()
+
+  // null = untouched, falls back to the saved map / first active category.
+  const [categoryInput, setCategoryInput] = useState<string | null>(null)
+  const [assignments, setAssignments] = useState<Record<string, string>>({})
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <p className="font-body text-sm text-destructive">
+        Couldn't load tracking categories: {error.message}
+      </p>
+    )
+  }
+
+  const categories = (data?.TrackingCategories ?? []).filter(
+    (c) => c.Status === 'ACTIVE',
+  )
+  if (categories.length === 0) {
+    return (
+      <p className="font-body text-sm text-muted-foreground">
+        No tracking categories found in Xero. Create one (e.g. "Property")
+        with an option per property, then come back here to map them.
+      </p>
+    )
+  }
+
+  const categoryId =
+    categoryInput ??
+    savedMap?.trackingCategoryId ??
+    categories[0].TrackingCategoryID
+  const category =
+    categories.find((c) => c.TrackingCategoryID === categoryId) ?? categories[0]
+  const options = category.Options.filter((o) => o.Status === 'ACTIVE')
+
+  const valueFor = (optionId: string) =>
+    assignments[optionId] ??
+    savedMap?.options.find((o) => o.trackingOptionId === optionId)
+      ?.propertyId ??
+    'none'
+
+  const save = () => {
+    const map: XeroTrackingMap = {
+      trackingCategoryId: category.TrackingCategoryID,
+      categoryName: category.Name,
+      options: options.map((o) => ({
+        trackingOptionId: o.TrackingOptionID,
+        name: o.Name,
+        propertyId:
+          valueFor(o.TrackingOptionID) === 'none'
+            ? null
+            : valueFor(o.TrackingOptionID),
+      })),
+    }
+    setSetting.mutate(
+      { key: TRACKING_MAP_KEY, value: JSON.stringify(map) },
+      {
+        onSuccess: () => toast.success('Tracking category mapping saved'),
+        onError: (e) => toast.error(e.message),
+      },
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="font-body text-sm font-medium text-navy">
+          Tracking category mapping
+        </p>
+        <p className="font-body text-xs text-muted-foreground">
+          Match each Xero tracking option to a property so the Financials P&L
+          can report per property.
+        </p>
+      </div>
+
+      {categories.length > 1 && (
+        <div className="space-y-1.5">
+          <Label>Xero tracking category</Label>
+          <Select value={category.TrackingCategoryID} onValueChange={setCategoryInput}>
+            <SelectTrigger className="w-full sm:w-[260px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.TrackingCategoryID} value={c.TrackingCategoryID}>
+                  {c.Name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {options.length === 0 && (
+          <p className="font-body text-sm text-muted-foreground">
+            "{category.Name}" has no active options in Xero.
+          </p>
+        )}
+        {options.map((o) => (
+          <div
+            key={o.TrackingOptionID}
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
+            <span className="font-body text-sm text-navy">{o.Name}</span>
+            <Select
+              value={valueFor(o.TrackingOptionID)}
+              onValueChange={(v) =>
+                setAssignments((prev) => ({ ...prev, [o.TrackingOptionID]: v }))
+              }
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not mapped</SelectItem>
+                {(properties ?? []).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        variant="secondary"
+        onClick={save}
+        disabled={setSetting.isPending || options.length === 0}
+      >
+        Save mapping
+      </Button>
+    </div>
+  )
+}
+
+function XeroIntegrationBlock() {
+  const { data: connection, isLoading } = useXeroConnection()
+  const disconnect = useXeroDisconnect()
+  const connected = connection?.connected ?? false
+
+  const connectToXero = () => {
+    const state = crypto.randomUUID()
+    sessionStorage.setItem(XERO_STATE_STORAGE_KEY, state)
+    // The function 302-redirects to login.xero.com/identity/connect/authorize
+    // with client_id, redirect_uri, scopes and this state.
+    window.location.href = `/.netlify/functions/xero-auth?state=${state}`
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link2 className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <p className="font-body text-sm font-medium text-navy">Xero</p>
+            {connected ? (
+              <Badge className="mt-1 bg-sage text-white">
+                Connected — {connection?.orgName ?? 'Xero organisation'}
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="mt-1 border-stone bg-muted text-muted-foreground"
+              >
+                Not connected
+              </Badge>
+            )}
+          </div>
+        </div>
+        {connected ? (
+          <ConfirmDialog
+            trigger={
+              <Button variant="outline" disabled={disconnect.isPending}>
+                Disconnect
+              </Button>
+            }
+            title="Disconnect Xero?"
+            description="Removes the stored Xero tokens. The tracking category mapping is kept for when you reconnect."
+            confirmLabel="Disconnect"
+            onConfirm={() =>
+              disconnect.mutate(undefined, {
+                onSuccess: () => toast.success('Xero disconnected'),
+                onError: (e) => toast.error(e.message),
+              })
+            }
+          />
+        ) : (
+          <Button onClick={connectToXero} disabled={isLoading}>
+            Connect Xero
+          </Button>
+        )}
+      </div>
+
+      {connected && <XeroTrackingMapConfig />}
+    </div>
+  )
+}
+
 function IntegrationsSection() {
   const { data: hubdocSetting, isLoading } = useAppSetting('hubdoc_email')
   const setSetting = useSetAppSetting()
@@ -198,35 +424,7 @@ function IntegrationsSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link2 className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="font-body text-sm font-medium text-navy">Xero</p>
-              <Badge
-                variant="outline"
-                className="mt-1 border-stone bg-muted text-muted-foreground"
-              >
-                Not connected
-              </Badge>
-            </div>
-          </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* span wrapper so the tooltip fires on a disabled button */}
-                <span tabIndex={0}>
-                  <Button disabled className="pointer-events-none">
-                    Connect Xero
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                Coming soon — set up your Xero OAuth credentials first
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+        <XeroIntegrationBlock />
 
         <Separator />
 

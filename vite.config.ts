@@ -35,7 +35,9 @@ export default defineConfig({
         // App shell only — Supabase data/storage stays network-only so the
         // ops numbers are never stale.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallbackDenylist: [/^\/api/],
+        // /.netlify covers the Xero OAuth redirect through xero-auth — the
+        // service worker must not serve index.html for function navigations.
+        navigateFallbackDenylist: [/^\/api/, /^\/\.netlify/],
       },
     }),
   ],

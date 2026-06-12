@@ -1,4 +1,4 @@
-# Casae Living Ops — Handoff (Sessions 2–8 + A–F)
+# Casae Living Ops — Handoff (Sessions 2–8 + A–G)
 
 Built June 2026. All sessions from both build briefs are complete; `npm run build` and `npm run lint` are clean. Live at casae-ops.netlify.app.
 
@@ -25,6 +25,19 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
 - **UX polish**: Skeleton loaders everywhere data fetches (shared `ListSkeleton` for list panels); `EmptyState` (icon, message, CTA) on every list; `ErrorBoundary` wraps the routed page in AppShell (keyed by pathname so it resets on navigation) with Try again / Go to dashboard; success toasts on all mutations including pipeline stage moves and job starts; `ConfirmDialog` before all deletes; lodger directory search bar filters by name (first/last/partner) across all properties, bypassing the property/status filters while typing; maintenance jobs show a days-open indicator (grey, amber > 7d, red > 14d).
 - **PWA** (vite-plugin-pwa, `autoUpdate`): manifest name "Casae Ops" / short name "Casae", navy theme + cream background, standalone display. Icons generated from `public/pwa-icon.svg` (navy square, serif C, sage underline) → pwa-192/512 + apple-touch-icon. Service worker precaches the app shell only — Supabase data is never cached, so figures stay live. `InstallPrompt` banner (mobile only, above the tab bar) appears on `beforeinstallprompt`, hides when already installed (standalone check) or previously dismissed (localStorage `casae-install-dismissed`).
 
+## Session G — Xero integration
+
+- **Netlify Functions** (`netlify/functions/`, config in `netlify.toml`, type-checked by `tsc -b` via `tsconfig.functions.json`; shared code in `_lib/xero.ts`, which Netlify ignores as a function because the directory has no matching entry file):
+  - `xero-auth` — `GET ?state=<uuid>` 302-redirects to `login.xero.com/identity/connect/authorize` with client_id / redirect_uri / scopes / state (so the client id never ships in the JS bundle); `POST { code }` exchanges the code, resolves the tenant via `GET /connections` (first ORGANISATION), stores tokens and returns `{ orgName, tenantId }`.
+  - `xero-refresh` — `POST`, refreshes + persists tokens, returns `{ expiry }`. `xero-api` also refreshes automatically, so this is mostly for tooling.
+  - `xero-api` — `GET ?path=api.xro/2.0/...` read-only proxy: refreshes the access token when within 60s of expiry, calls Xero with the `xero-tenant-id` header, retries once on a 401. Only GETs under `api.xro/2.0/` are allowed.
+- **Token storage**: `app_settings` keys `xero_access_token` + `xero_refresh_token` (AES-256-GCM, key = sha256(`XERO_CLIENT_SECRET`), value format `iv.tag.ciphertext` base64), `xero_tenant_id`, `xero_token_expiry` (ISO), `xero_org_name`. Functions authenticate as the calling user (Supabase anon key + the caller's JWT), so RLS applies and no service-role key is needed.
+- **Scopes**: `openid profile email accounting.reports.read accounting.settings.read` **plus `offline_access`** — Xero only issues refresh tokens with `offline_access`, so it was added to the requested scope list. Xero rotates refresh tokens on every refresh; the previous one stays valid ~30 min, which covers concurrent refreshes.
+- **Settings → Integrations**: Connect Xero (generates a state UUID into sessionStorage, navigates via the function redirect), connected state shows "Connected — <org name>" with a confirm-guarded Disconnect (deletes the token keys; the tracking map is kept for reconnects). Once connected, a **tracking category mapping** panel lists the active options of the chosen Xero tracking category with a property dropdown each; saved as JSON to `app_settings` key `xero_tracking_map`.
+- **/settings/xero/callback** (`XeroCallbackPage`): verifies the state nonce, exchanges the code exactly once (ref-guarded against StrictMode double-effects — codes are single-use), then shows Connected + org name or the error.
+- **Financials → Xero P&L tab** (now the default tab): range presets (this / last month, last 3 / 6 months) + custom from/to; one `Reports/ProfitAndLoss` call per mapped property (`trackingCategoryID` + `trackingOptionID`); table of income / expenses / net per property (click a row to expand the top-5 income and expense accounts), portfolio totals row, "Last synced" from the query cache and a "Sync now" refetch. Footer note: "Showing top accounts per category — view full detail in Xero."
+- **PWA fix**: `navigateFallbackDenylist` now also excludes `/.netlify/*` — without this the installed app's service worker would answer the Connect-button navigation with index.html instead of letting the OAuth redirect through.
+
 ## Verified
 
 End-to-end against the live Supabase project (via a temporary test login, since removed): password login returns a session; RLS lets an authenticated user read all 5 properties → 18 rooms → lodgers (17/18 occupied, income $6,900, head lease $5,690, margin $1,210/wk — matches the dashboard); maintenance job and clean inserts succeed; receipts bucket accepts and serves an upload. Test rows/files were deleted afterwards.
@@ -35,13 +48,14 @@ Sessions A–F verification (12 Jun 2026): migrations 004–006 applied to the r
 
 1. **Team logins** — only `luke.hanner@crosspondcapital.com` exists in Supabase Auth. Create Erin, Brenna and Kaylin in the dashboard (Auth → Users → Add user, with "auto confirm"). A profiles row is created automatically; each person can set their display name in Settings → Account.
 2. **Confirm placeholder seed data** — TBC lodger names/rooms (Scarborough, TH8), bond amounts and received dates, move-in dates, head-lease start/end dates (all currently null, so cards show "Lease end not set").
-3. **Future integrations env vars** (not yet wired, for the Edge Function/Netlify sessions): `RESEND_API_KEY`, Xero OAuth client ID/secret. The HubDoc intake email is now entered in Settings → Integrations (stored in `app_settings`) — confirm which of the two intake addresses is live.
-4. **Netlify** — add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to site env; SPA redirect (`/* → /index.html 200`) needed when deploying.
-5. **PWA icon** — `public/pwa-icon.svg` is a simple navy/serif-C placeholder rendered with a system serif (not actual Cormorant Garamond). Swap in a designed icon when there is one and re-export pwa-192.png / pwa-512.png / apple-touch-icon.png.
+3. **Future integrations env vars**: `RESEND_API_KEY` (HubDoc test email) is still unwired. Xero's `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` are already in the Netlify site env and are now used by the functions.
+4. **Netlify** — `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be in the site env (they already are for the build; the Xero functions read the same two vars at runtime, and Netlify exposes site env vars to functions by default). SPA redirect (`/* → /index.html 200`) needed when deploying.
+5. **Xero** — the redirect URI registered on the Xero app must be exactly `https://casae-ops.netlify.app/settings/xero/callback` (override locally with a `XERO_REDIRECT_URI` env var under `netlify dev`). In Xero itself, create a tracking category (e.g. "Property") with one option per property and code transactions to it — then connect in Settings → Integrations and map the options to properties. First sync after connecting: open Financials → Xero P&L.
+6. **PWA icon** — `public/pwa-icon.svg` is a simple navy/serif-C placeholder rendered with a system serif (not actual Cormorant Garamond). Swap in a designed icon when there is one and re-export pwa-192.png / pwa-512.png / apple-touch-icon.png.
 
 ## Known gaps / next steps
 
 1. **Notifications** (Settings) are UI-only — wiring them needs an Edge Function + Resend.
-2. **Xero connect button** is intentionally disabled until OAuth credentials exist.
+2. **Xero** is now fully wired (Session G). Remaining caveats: the OAuth flow and P&L can't run under `npm run dev` (functions need `netlify dev` or the deployed site); the P&L parser was written against Xero's documented report shape but hasn't run against the live Cross Pond Capital org yet — verify income/expenses/net against Xero after the first real sync; any authenticated team member can connect/disconnect (app_settings RLS is open to all authenticated users, tokens are encrypted at rest).
 3. **Inspection photos** can only be added at creation; the detail page doesn't yet support appending photos (the `useUpdateInspection` hook already handles it if a UI is added).
 4. Both fixes from the previous handoff (pipeline "assigned to", recurring-cleans duplication) are done — see Sessions A–F above.
