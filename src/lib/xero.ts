@@ -175,12 +175,49 @@ export function parsePnLReport(response: XeroReportResponse): PnLSummary {
     }
   }
 
+  let net = explicitNet ?? income - expenses
+
+  // Sign-convention guards — Xero layouts vary. Income can arrive in raw
+  // credit (negative) sign even when the period is profitable: flip it (and
+  // its account lines) back when its magnitude clearly exceeds expenses but
+  // net came out negative. And if the explicit net row disagrees in sign
+  // with parsed income − expenses, trust the parsed sections.
+  if (income < 0 && net < 0 && -income > expenses) {
+    income = -income
+    for (const line of incomeLines) line.amount = -line.amount
+  }
+  if (net < 0 && income > expenses) net = income - expenses
+
   return {
     income,
     expenses,
-    net: explicitNet ?? income - expenses,
+    net,
     topIncome: topLines(incomeLines),
     topExpenses: topLines(expenseLines),
+  }
+}
+
+/**
+ * Combine several option-level P&L summaries into one (used when multiple
+ * tracking options map to the same property). Account lines with the same
+ * name are merged by summing before re-ranking the top 5.
+ */
+export function combinePnLSummaries(summaries: PnLSummary[]): PnLSummary {
+  const mergeLines = (lists: PnLAccountLine[][]): PnLAccountLine[] => {
+    const byName = new Map<string, number>()
+    for (const lines of lists) {
+      for (const l of lines) byName.set(l.name, (byName.get(l.name) ?? 0) + l.amount)
+    }
+    return topLines(
+      [...byName.entries()].map(([name, amount]) => ({ name, amount })),
+    )
+  }
+  return {
+    income: summaries.reduce((s, x) => s + x.income, 0),
+    expenses: summaries.reduce((s, x) => s + x.expenses, 0),
+    net: summaries.reduce((s, x) => s + x.net, 0),
+    topIncome: mergeLines(summaries.map((s) => s.topIncome)),
+    topExpenses: mergeLines(summaries.map((s) => s.topExpenses)),
   }
 }
 

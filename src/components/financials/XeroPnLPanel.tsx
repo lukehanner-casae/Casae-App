@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils'
 import { formatAud, formatDateTime, todayIso } from '@/lib/format'
 import {
+  combinePnLSummaries,
   XERO_RANGE_LABELS,
   xeroRangeDates,
   type PnLAccountLine,
@@ -90,8 +91,21 @@ export default function XeroPnLPanel() {
   const rows = useMemo(() => {
     const nameOf = (id: string) =>
       properties?.find((p) => p.id === id)?.display_name
-    return (pnl.data ?? [])
-      .map((r) => ({ ...r, propertyName: nameOf(r.propertyId) ?? r.optionName }))
+    // One row per property — several tracking options (e.g. BR1/BR2) can map
+    // to the same property, so group and sum them.
+    const groups = new Map<string, NonNullable<typeof pnl.data>>()
+    for (const r of pnl.data ?? []) {
+      const list = groups.get(r.propertyId) ?? []
+      list.push(r)
+      groups.set(r.propertyId, list)
+    }
+    return [...groups.entries()]
+      .map(([propertyId, options]) => ({
+        propertyId,
+        propertyName: nameOf(propertyId) ?? options[0].optionName,
+        options,
+        summary: combinePnLSummaries(options.map((o) => o.summary)),
+      }))
       .sort((a, b) => a.propertyName.localeCompare(b.propertyName))
   }, [pnl.data, properties])
 
@@ -230,18 +244,18 @@ export default function XeroPnLPanel() {
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <Fragment key={row.trackingOptionId}>
+                <Fragment key={row.propertyId}>
                   <TableRow
                     className="cursor-pointer"
                     onClick={() =>
                       setExpanded((prev) => ({
                         ...prev,
-                        [row.trackingOptionId]: !prev[row.trackingOptionId],
+                        [row.propertyId]: !prev[row.propertyId],
                       }))
                     }
                   >
                     <TableCell className="text-muted-foreground">
-                      {expanded[row.trackingOptionId] ? (
+                      {expanded[row.propertyId] ? (
                         <ChevronDown className="h-4 w-4" />
                       ) : (
                         <ChevronRight className="h-4 w-4" />
@@ -265,19 +279,53 @@ export default function XeroPnLPanel() {
                       {formatAud(row.summary.net)}
                     </TableCell>
                   </TableRow>
-                  {expanded[row.trackingOptionId] && (
+                  {expanded[row.propertyId] && (
                     <TableRow className="hover:bg-transparent">
                       <TableCell />
                       <TableCell colSpan={4}>
-                        <div className="grid grid-cols-1 gap-4 py-1 sm:grid-cols-2">
-                          <AccountList
-                            title="Top income accounts"
-                            lines={row.summary.topIncome}
-                          />
-                          <AccountList
-                            title="Top expense accounts"
-                            lines={row.summary.topExpenses}
-                          />
+                        <div className="space-y-4 py-1">
+                          {row.options.length > 1 && (
+                            <div>
+                              <p className="font-body text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Tracking options
+                              </p>
+                              <ul className="mt-1 space-y-0.5">
+                                {row.options.map((o) => (
+                                  <li
+                                    key={o.trackingOptionId}
+                                    className="flex flex-wrap justify-between gap-x-4 font-body text-sm"
+                                  >
+                                    <span className="text-navy">
+                                      {o.optionName}
+                                    </span>
+                                    <span className="tabular-nums text-muted-foreground">
+                                      {formatAud(o.summary.income)} in ·{' '}
+                                      {formatAud(o.summary.expenses)} out ·{' '}
+                                      <span
+                                        className={
+                                          o.summary.net >= 0
+                                            ? 'text-sage'
+                                            : 'text-destructive'
+                                        }
+                                      >
+                                        {formatAud(o.summary.net)} net
+                                      </span>
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <AccountList
+                              title="Top income accounts"
+                              lines={row.summary.topIncome}
+                            />
+                            <AccountList
+                              title="Top expense accounts"
+                              lines={row.summary.topExpenses}
+                            />
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
