@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import {
@@ -154,6 +155,13 @@ export interface XeroPnLResult {
   overall: PnLSummary
 }
 
+export interface XeroPnLProgress {
+  /** Reports fetched so far. */
+  done: number
+  /** Mapped tracking options + 1 whole-org report. */
+  total: number
+}
+
 export function useXeroPnL(
   from: string | null,
   to: string | null,
@@ -161,7 +169,10 @@ export function useXeroPnL(
   enabled: boolean,
 ) {
   const mapped = (map?.options ?? []).filter((o) => o.propertyId)
-  return useQuery({
+  // Per-report progress so the panel can show how far the sync is — the
+  // sequential fetches below take several seconds end to end.
+  const [progress, setProgress] = useState<XeroPnLProgress | null>(null)
+  const query = useQuery({
     queryKey: [
       'xero',
       'pnl',
@@ -174,34 +185,47 @@ export function useXeroPnL(
     staleTime: 1000 * 60 * 10,
     queryFn: async (): Promise<XeroPnLResult> => {
       // Sequential with a gap — Xero allows only 5 concurrent calls and
-      // 60/min per app, so one P&L request per property at a time.
-      const gap = () => new Promise((resolve) => setTimeout(resolve, 500))
-      const rows: XeroPnLRow[] = []
-      for (const option of mapped) {
-        if (rows.length > 0) await gap()
-        const params = new URLSearchParams({
+      // 60/min per app, so one P&L request per property at a time. 200ms
+      // keeps ~6 calls well inside 60/min, and the xero-api proxy retries
+      // 429s with backoff if Xero pushes back anyway.
+      const gap = () => new Promise((resolve) => setTimeout(resolve, 200))
+      const total = mapped.length + 1
+      setProgress({ done: 0, total })
+      try {
+        const rows: XeroPnLRow[] = []
+        for (const option of mapped) {
+          if (rows.length > 0) await gap()
+          const params = new URLSearchParams({
+            fromDate: from!,
+            toDate: to!,
+            trackingCategoryID: map!.trackingCategoryId,
+            trackingOptionID: option.trackingOptionId,
+          })
+          const report = await xeroApiGet<XeroReportResponse>(
+            `api.xro/2.0/Reports/ProfitAndLoss?${params.toString()}`,
+          )
+          rows.push({
+            propertyId: option.propertyId!,
+            trackingOptionId: option.trackingOptionId,
+            optionName: option.name,
+            summary: parsePnLReport(report),
+          })
+          setProgress({ done: rows.length, total })
+        }
+        // Whole-org P&L (no tracking filter) — captures untracked overheads.
+        await gap()
+        const overallParams = new URLSearchParams({
           fromDate: from!,
           toDate: to!,
-          trackingCategoryID: map!.trackingCategoryId,
-          trackingOptionID: option.trackingOptionId,
         })
-        const report = await xeroApiGet<XeroReportResponse>(
-          `api.xro/2.0/Reports/ProfitAndLoss?${params.toString()}`,
+        const overallReport = await xeroApiGet<XeroReportResponse>(
+          `api.xro/2.0/Reports/ProfitAndLoss?${overallParams.toString()}`,
         )
-        rows.push({
-          propertyId: option.propertyId!,
-          trackingOptionId: option.trackingOptionId,
-          optionName: option.name,
-          summary: parsePnLReport(report),
-        })
+        return { rows, overall: parsePnLReport(overallReport) }
+      } finally {
+        setProgress(null)
       }
-      // Whole-org P&L (no tracking filter) — captures untracked overheads.
-      await gap()
-      const overallParams = new URLSearchParams({ fromDate: from!, toDate: to! })
-      const overallReport = await xeroApiGet<XeroReportResponse>(
-        `api.xro/2.0/Reports/ProfitAndLoss?${overallParams.toString()}`,
-      )
-      return { rows, overall: parsePnLReport(overallReport) }
     },
   })
+  return { ...query, progress }
 }

@@ -18,6 +18,13 @@ const ALLOWED_PREFIX = 'api.xro/2.0/'
 export default async function handler(req: Request): Promise<Response> {
   try {
     if (req.method !== 'GET') throw new HttpError(405, 'Method not allowed')
+
+    // Warm-up ping from the scheduled xero-warm function — answered before
+    // auth so it stays cheap; the point is just to keep this lambda loaded.
+    if (new URL(req.url).searchParams.get('warm') === '1') {
+      return json(200, { warm: true })
+    }
+
     const supabase = await requireUser(req)
 
     const path = new URL(req.url).searchParams.get('path') ?? ''

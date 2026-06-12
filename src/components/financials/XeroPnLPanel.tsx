@@ -26,6 +26,7 @@ import {
   useXeroConnection,
   useXeroPnL,
   useXeroTrackingMap,
+  type XeroPnLProgress,
   type XeroPnLRow,
 } from '@/hooks/use-xero'
 import { cn } from '@/lib/utils'
@@ -40,6 +41,29 @@ import {
 } from '@/lib/xero'
 
 const OVERHEADS_KEY = '__overheads__'
+
+function SyncProgress({ progress }: { progress: XeroPnLProgress }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="font-body text-sm text-muted-foreground">
+        {progress.done === 0
+          ? 'Contacting Xero… the first sync can take a moment while the connection wakes up.'
+          : `Pulling P&L reports from Xero — ${progress.done} of ${progress.total} done…`}
+      </p>
+      <div className="flex gap-1">
+        {Array.from({ length: progress.total }, (_, i) => (
+          <div
+            key={i}
+            className={cn(
+              'h-1.5 flex-1 rounded-full transition-colors',
+              i < progress.done ? 'bg-sage' : 'bg-muted',
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function AccountList({
   title,
@@ -213,6 +237,11 @@ export default function XeroPnLPanel() {
           </>
         )}
         <div className="ml-auto flex items-center gap-3">
+          {pnl.isFetching && pnl.progress && !pnl.isLoading && (
+            <p className="font-body text-xs text-muted-foreground tabular-nums">
+              {pnl.progress.done}/{pnl.progress.total} reports
+            </p>
+          )}
           <p className="font-body text-xs text-muted-foreground">
             Last synced{' '}
             {pnl.dataUpdatedAt
@@ -237,7 +266,10 @@ export default function XeroPnLPanel() {
           Pick a from and to date to run the report.
         </p>
       ) : pnl.isLoading ? (
-        <ListSkeleton rows={5} />
+        <div className="space-y-3">
+          {pnl.progress && <SyncProgress progress={pnl.progress} />}
+          <ListSkeleton rows={5} />
+        </div>
       ) : pnl.error ? (
         <p className="font-body text-sm text-destructive">
           Couldn't load the P&L from Xero: {pnl.error.message}

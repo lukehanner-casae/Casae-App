@@ -1,4 +1,4 @@
-# Casae Living Ops — Handoff (Sessions 2–8 + A–G)
+# Casae Living Ops — Handoff (Sessions 2–8 + A–H)
 
 Built June 2026. All sessions from both build briefs are complete; `npm run build` and `npm run lint` are clean. Live at casae-ops.netlify.app.
 
@@ -37,8 +37,40 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
 - **/settings/xero/callback** (`XeroCallbackPage`): verifies the state nonce, exchanges the code exactly once (ref-guarded against StrictMode double-effects — codes are single-use), then shows Connected + org name or the error.
 - **Financials → Xero P&L tab** (now the default tab): range presets (this / last month, last 3 / 6 months) + custom from/to; one `Reports/ProfitAndLoss` call per mapped property (`trackingCategoryID` + `trackingOptionID`); table of income / expenses / net per property (click a row to expand the top-5 income and expense accounts), portfolio totals row, "Last synced" from the query cache and a "Sync now" refetch. Footer note: "Showing top accounts per category — view full detail in Xero."
 - **P&L parser fix (a8298b6)**: `parsePnLReport` classified sections by testing the income pattern (`/income|revenue|sales/`) before the expense pattern, so "Cost of Sales" matched via "sales" — head lease rent (coded as Cost of Sales in Xero) landed in Income and Expenses showed $0. The expense pattern (now `/expense|cost of (sales|goods)/`) is tested first and income excludes its matches, so Expenses = Cost of Sales + Operating Expenses and net margin is Income − both.
-- **Overheads row**: untracked operating expenses (bank fees, Stripe fees, bookkeeping — anything with no tracking option) were invisible because every P&L call was filtered by `trackingOptionID`. `useXeroPnL` now makes one extra `Reports/ProfitAndLoss` call with no tracking filter (same 500ms gap) and returns `{ rows, overall }`. `overheadPnLSummary` in src/lib/xero.ts diffs the whole-org report against the tracked summaries account-by-account (`PnLSummary` now carries full `incomeLines`/`expenseLines` for this); the panel shows the residual as an expandable "Overheads — not tagged to a property" row, and the **Portfolio total row is the org-wide P&L directly**, so its Net is true bottom-line profit and matches Xero's Net Profit. Tracked property nets + overheads net reconcile to the portfolio net.
+- **Overheads row**: untracked operating expenses (bank fees, Stripe fees, bookkeeping — anything with no tracking option) were invisible because every P&L call was filtered by `trackingOptionID`. `useXeroPnL` now makes one extra `Reports/ProfitAndLoss` call with no tracking filter (same inter-call gap) and returns `{ rows, overall }`. `overheadPnLSummary` in src/lib/xero.ts diffs the whole-org report against the tracked summaries account-by-account (`PnLSummary` now carries full `incomeLines`/`expenseLines` for this); the panel shows the residual as an expandable "Overheads — not tagged to a property" row, and the **Portfolio total row is the org-wide P&L directly**, so its Net is true bottom-line profit and matches Xero's Net Profit. Tracked property nets + overheads net reconcile to the portfolio net.
 - **PWA fix**: `navigateFallbackDenylist` now also excludes `/.netlify/*` — without this the installed app's service worker would answer the Connect-button navigation with index.html instead of letting the OAuth redirect through.
+
+## Session H — deploy caching + Xero P&L performance
+
+- **Cache-control headers** (`netlify.toml`): users needed a hard refresh
+  (cmd+shift+R) after deploys because the HTML entry point was being cached.
+  `/` and `/index.html` now send `max-age=0, must-revalidate`; hashed build
+  output (`/assets/*`, `/workbox-*`) is `max-age=31536000, immutable`; unhashed
+  PWA files (`/sw.js`, `/registerSW.js`, `/manifest.webmanifest`) are never
+  cached so the service-worker update cycle keeps working. Rules are
+  deliberately non-overlapping — Netlify applies every matching header rule and
+  concatenates duplicates, so a blanket `/*` no-cache rule would poison the
+  asset caching. Deep SPA routes get Netlify's identical default header via the
+  `/* → /index.html` fallback. Note: with `autoUpdate` PWA, one normal refresh
+  after a deploy may still show the old version while the new service worker
+  installs; the update lands on the next load.
+- **Xero P&L sync speed**: the first sync after a hard refresh could take up to
+  ~60s (function cold start + token refresh + sequential calls). Fixes:
+  - Inter-call gap in `useXeroPnL` reduced 500ms → 200ms (6 calls is still well
+    inside Xero's 60/min limit; the `xero-api` proxy retries 429s with backoff
+    as the safety net).
+  - `useXeroPnL` now also returns `progress` (`{ done, total }`, reset to null
+    when the fetch settles). The panel shows a segmented progress bar + status
+    line during the initial load ("Contacting Xero…" until the first report
+    lands — that's the cold-start/token-refresh window — then "x of y done…")
+    and a compact "x/y reports" counter next to Sync now during background
+    refetches.
+  - **`xero-warm` scheduled function** (every 10 min, production deploy only):
+    pings `xero-api?warm=1` over HTTP to keep that lambda warm — each function
+    is its own lambda, so a scheduled function can't warm another just by
+    existing. `xero-api` answers `warm=1` with a 200 before auth; no
+    credentials involved, nothing to configure (uses Netlify's runtime `URL`
+    env var).
 
 ## Verified
 
