@@ -1,111 +1,132 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Casae Living brand system.
+  Navy #2C3E4A · Stone #C8C4B0 · Sage #5C7A52 · Cream #F5F3EE
+  Headings: Cormorant Garamond · Body: Jost
+*/
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --radius: 0.25rem; /* 4px cards per brand spec */
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Brand palette */
+  --navy: #2c3e4a;
+  --stone: #c8c4b0;
+  --sage: #5c7a52;
+  --cream: #f5f3ee;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* shadcn semantic tokens mapped to Casae brand */
+  --background: var(--cream);
+  --foreground: var(--navy);
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
+  --card: #ffffff;
+  --card-foreground: var(--navy);
+
+  --popover: #ffffff;
+  --popover-foreground: var(--navy);
+
+  --primary: var(--navy);
+  --primary-foreground: var(--cream);
+
+  --secondary: var(--stone);
+  --secondary-foreground: var(--navy);
+
+  --muted: #ece9e0;
+  --muted-foreground: #6b6e6a;
+
+  --accent: var(--sage);
+  --accent-foreground: var(--cream);
+
+  --destructive: #ef4444; /* red-500 */
+  --destructive-foreground: #ffffff;
+
+  --border: var(--stone);
+  --input: var(--stone);
+  --ring: var(--sage);
+
+  /* status colours from brand spec */
+  --occupied: var(--sage);
+  --warning: #f59e0b; /* amber-500 */
+  --vacant: #ef4444; /* red-500 */
+
+  --sidebar: var(--navy);
+  --sidebar-foreground: var(--cream);
+  --sidebar-primary: var(--sage);
+  --sidebar-primary-foreground: var(--cream);
+  --sidebar-accent: #3a4f5e;
+  --sidebar-accent-foreground: var(--cream);
+  --sidebar-border: #3a4f5e;
+  --sidebar-ring: var(--sage);
+
+  --font-heading: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Jost', system-ui, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Casae brand utilities: bg-navy, text-sage, border-stone, etc. */
+  --color-navy: var(--navy);
+  --color-stone: var(--stone);
+  --color-sage: var(--sage);
+  --color-cream: var(--cream);
+  --color-occupied: var(--occupied);
+  --color-warning: var(--warning);
+  --color-vacant: var(--vacant);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-sans: var(--font-body);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  body {
+    @apply bg-background text-foreground font-body antialiased;
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
   }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
 }
