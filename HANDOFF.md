@@ -71,6 +71,14 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
     existing. `xero-api` answers `warm=1` with a 200 before auth; no
     credentials involved, nothing to configure (uses Netlify's runtime `URL`
     env var).
+  - **Duplicate tracking options deduped**: the saved `xero_tracking_map` JSON
+    carried several entries for the same tracking option ID (BR1–BR4 rows per
+    property), so the sync made one P&L call per entry — 24 calls instead
+    of 6. `useXeroPnL` now dedupes by `trackingOptionId` before fetching
+    (first entry's propertyId wins); the fetch loop, progress total and query
+    key all derive from the deduped list, and the panel already groups/sums by
+    propertyId. Caveat: the duplicates are still in the stored map — the
+    Settings mapping panel hasn't been audited for writing them back on save.
 
 ## Verified
 

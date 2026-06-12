@@ -168,7 +168,16 @@ export function useXeroPnL(
   map: XeroTrackingMap | null | undefined,
   enabled: boolean,
 ) {
-  const mapped = (map?.options ?? []).filter((o) => o.propertyId)
+  // The stored map can carry several entries for the same tracking option
+  // (e.g. BR1–BR4 rows per property), which multiplied the P&L calls. One
+  // Xero report per *unique* option ID is enough — the panel already groups
+  // and sums rows by propertyId. First entry wins for the propertyId.
+  const seen = new Set<string>()
+  const mapped = (map?.options ?? []).filter((o) => {
+    if (!o.propertyId || seen.has(o.trackingOptionId)) return false
+    seen.add(o.trackingOptionId)
+    return true
+  })
   // Per-report progress so the panel can show how far the sync is — the
   // sequential fetches below take several seconds end to end.
   const [progress, setProgress] = useState<XeroPnLProgress | null>(null)
