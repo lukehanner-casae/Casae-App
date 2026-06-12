@@ -5,3 +5,48 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# HTML entry points must never be cached so a normal refresh always picks up
+# the new hashed asset URLs after a deploy. Deep SPA routes (served via the
+# /* fallback in public/_redirects) keep Netlify's default
+# "max-age=0, must-revalidate", which already forces revalidation.
+# Rules are kept non-overlapping: Netlify applies every matching rule and
+# concatenates duplicate headers, so a blanket /* rule would override the
+# long-lived asset caching below.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Vite build output is content-hashed — safe to cache forever.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/workbox-*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# PWA files at the root are NOT hashed; if these are cached the service
+# worker (and the precache manifest inside it) goes stale across deploys.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/registerSW.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
