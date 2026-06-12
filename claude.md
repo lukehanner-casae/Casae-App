@@ -90,6 +90,27 @@ Cormorant Garamond for headings. Jost for body.
   /.netlify/* so the OAuth redirect isn't swallowed by the service worker.
   Note: offline_access scope is requested in addition to the read scopes —
   Xero won't issue refresh tokens without it.
+- Session I ✓ AI insights (/insights, nav between Financials and Pipeline,
+  Brain icon; also a fifth mobile tab). Netlify function
+  netlify/functions/ai-insights.ts: POST {mode: 'summary'|'chat', messages},
+  auth via the caller's Supabase JWT (reuses _lib/xero.ts requireUser).
+  Gathers live context (active properties + rooms + lodgers with weekly
+  rates/margins, vacant rooms, open/in-progress maintenance with days open,
+  non-dead pipeline) plus a best-effort Xero P&L snapshot (this month vs last
+  month — one Reports/ProfitAndLoss call per month with trackingCategoryID
+  only, so one column per tracking option + org Total; 10-min in-instance
+  cache, 12s budget, silently skipped when Xero is down/not connected) and
+  streams claude-sonnet-4-6 (ANTHROPIC_API_KEY env var, @anthropic-ai/sdk)
+  back as plain UTF-8 text chunks. System prompt encodes the business model
+  (head-lease/lodger spread, 20 properties by Feb 2027, WA 6-lodger
+  threshold, Barnes-type benchmark, 52/12 weekly→monthly, AUD, CFO tone) +
+  the live data JSON; output is plain text (no markdown) for pre-wrap
+  rendering. Frontend: src/hooks/use-insights.ts (fetch-reader streaming;
+  useDailyBriefing auto-generates on visit, cached in localStorage
+  `casae-insights-briefing`, refetched when >6h old; useInsightsChat),
+  src/components/insights/InsightsPanel.tsx (Portfolio Briefing card with
+  refresh + streaming caret + skeleton, chat with Casae-mark avatar, typing
+  dots, right-aligned user bubbles), src/pages/InsightsPage.tsx.
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).

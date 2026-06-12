@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Sparkles,
   Landmark,
+  Brain,
   KanbanSquare,
   Contact,
   Settings,
@@ -27,15 +28,17 @@ export const navItems: NavItem[] = [
   { label: 'Inspections', to: '/inspections', icon: ClipboardCheck },
   { label: 'Cleaning', to: '/cleaning', icon: Sparkles },
   { label: 'Financials', to: '/financials', icon: Landmark },
+  { label: 'Insights', to: '/insights', icon: Brain },
   { label: 'Pipeline', to: '/pipeline', icon: KanbanSquare },
   { label: 'Contacts', to: '/contacts', icon: Contact },
   { label: 'Settings', to: '/settings', icon: Settings },
 ]
 
-/** Bottom tab bar: 4 primary destinations + More (per brand spec). */
+/** Bottom tab bar: primary destinations + More (per brand spec). */
 export const mobileNavItems: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Properties', to: '/properties', icon: Building2 },
   { label: 'Maintenance', to: '/maintenance', icon: Wrench },
+  { label: 'Insights', to: '/insights', icon: Brain },
   { label: 'More', to: '/more', icon: MoreHorizontal },
 ]

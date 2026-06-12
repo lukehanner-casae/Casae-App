@@ -12,6 +12,7 @@ import InspectionsPage from '@/pages/InspectionsPage'
 import InspectionDetailPage from '@/pages/InspectionDetailPage'
 import CleaningPage from '@/pages/CleaningPage'
 import FinancialsPage from '@/pages/FinancialsPage'
+import InsightsPage from '@/pages/InsightsPage'
 import PipelinePage from '@/pages/PipelinePage'
 import ContactsPage from '@/pages/ContactsPage'
 import SettingsPage from '@/pages/SettingsPage'
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="inspections/:id" element={<InspectionDetailPage />} />
           <Route path="cleaning" element={<CleaningPage />} />
           <Route path="financials" element={<FinancialsPage />} />
+          <Route path="insights" element={<InsightsPage />} />
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="settings" element={<SettingsPage />} />

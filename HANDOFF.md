@@ -80,6 +80,46 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
     propertyId. Caveat: the duplicates are still in the stored map — the
     Settings mapping panel hasn't been audited for writing them back on save.
 
+## Session I — AI insights
+
+- **/insights** (nav between Financials and Pipeline, Brain icon; also added as
+  a fifth tab on the mobile bottom bar — More still picks up the rest
+  automatically). Two sections: a Portfolio Briefing card that auto-generates
+  on the first visit each day (localStorage `casae-insights-briefing`,
+  refreshed when older than 6 hours, manual Refresh button) and a chat
+  interface with full business context. Both stream word-by-word.
+- **`netlify/functions/ai-insights.ts`**: POST `{ mode: 'summary' | 'chat',
+  messages }`, authenticated with the caller's Supabase JWT (same
+  `requireUser` as the Xero functions, so only logged-in team members can
+  spend API credits). Builds a context payload from Supabase — active
+  properties with rooms/lodgers/weekly rates and computed margins, vacant
+  rooms, open + in-progress maintenance with days open, non-dead pipeline —
+  then calls `claude-sonnet-4-6` via `@anthropic-ai/sdk` and streams plain
+  UTF-8 text chunks back (no SSE framing; the client appends chunks as they
+  arrive). The system prompt encodes the business model: head-lease/lodger
+  spread, 20-properties-by-Feb-2027 target, WA 6-lodger threshold,
+  Barnes-type benchmark, 52/12 weekly→monthly, AUD, numbers-first CFO tone,
+  plain-text output (the panel renders with `whitespace-pre-wrap`, no
+  markdown lib).
+- **Xero in the AI context**: P&L isn't persisted in Supabase (the Financials
+  tab fetches it live), so the function pulls its own snapshot through the
+  stored connection — two `Reports/ProfitAndLoss` calls (this month-to-date
+  and last calendar month) with `trackingCategoryID` only, which returns one
+  column per tracking option plus the org Total column. A small columnar
+  parser (same section-classification rules as `parsePnLReport`, expense
+  before income so Cost of Sales lands right) reduces each column to
+  income/expenses/net; tracking option names are mapped to property display
+  names via `xero_tracking_map`. Snapshot is cached in-instance for 10
+  minutes and wrapped in a 12s timeout — if Xero is not connected, slow, or
+  errors, the AI is told to fall back to lodger rate data (and says so).
+- **Env**: `ANTHROPIC_API_KEY` must be set in the Netlify site env (it is).
+  Like the Xero flow, Insights doesn't work under `npm run dev` — use
+  `netlify dev` or the deployed site.
+- **Caveats**: chat history is in-memory only (refresh clears it); the
+  briefing cache is per-browser; Xero figures in the AI context are rounded
+  to whole dollars; the first briefing after a quiet spell pays the function
+  cold start before tokens start streaming (skeleton shows until then).
+
 ## Verified
 
 End-to-end against the live Supabase project (via a temporary test login, since removed): password login returns a session; RLS lets an authenticated user read all 5 properties → 18 rooms → lodgers (17/18 occupied, income $6,900, head lease $5,690, margin $1,210/wk — matches the dashboard); maintenance job and clean inserts succeed; receipts bucket accepts and serves an upload. Test rows/files were deleted afterwards.
