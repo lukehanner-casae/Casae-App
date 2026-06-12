@@ -152,8 +152,10 @@ export function parsePnLReport(response: XeroReportResponse): PnLSummary {
       continue
     }
 
-    const isIncome = /income|revenue|sales/i.test(title)
-    const isExpense = /expense|cost of sales/i.test(title)
+    // Check expense first: "Cost of Sales" would otherwise match the
+    // income pattern via "sales".
+    const isExpense = /expense|cost of (sales|goods)/i.test(title)
+    const isIncome = !isExpense && /income|revenue|sales/i.test(title)
     if (!isIncome && !isExpense) continue
 
     const accountRows = children.filter((r) => r.RowType === 'Row')
