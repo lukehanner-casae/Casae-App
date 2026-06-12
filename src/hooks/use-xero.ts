@@ -166,25 +166,30 @@ export function useXeroPnL(
     enabled: enabled && !!from && !!to && !!map && mapped.length > 0,
     staleTime: 1000 * 60 * 10,
     queryFn: async (): Promise<XeroPnLRow[]> => {
-      return Promise.all(
-        mapped.map(async (option) => {
-          const params = new URLSearchParams({
-            fromDate: from!,
-            toDate: to!,
-            trackingCategoryID: map!.trackingCategoryId,
-            trackingOptionID: option.trackingOptionId,
-          })
-          const report = await xeroApiGet<XeroReportResponse>(
-            `api.xro/2.0/Reports/ProfitAndLoss?${params.toString()}`,
-          )
-          return {
-            propertyId: option.propertyId!,
-            trackingOptionId: option.trackingOptionId,
-            optionName: option.name,
-            summary: parsePnLReport(report),
-          }
-        }),
-      )
+      // Sequential with a gap — Xero allows only 5 concurrent calls and
+      // 60/min per app, so one P&L request per property at a time.
+      const rows: XeroPnLRow[] = []
+      for (const option of mapped) {
+        if (rows.length > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+        const params = new URLSearchParams({
+          fromDate: from!,
+          toDate: to!,
+          trackingCategoryID: map!.trackingCategoryId,
+          trackingOptionID: option.trackingOptionId,
+        })
+        const report = await xeroApiGet<XeroReportResponse>(
+          `api.xro/2.0/Reports/ProfitAndLoss?${params.toString()}`,
+        )
+        rows.push({
+          propertyId: option.propertyId!,
+          trackingOptionId: option.trackingOptionId,
+          optionName: option.name,
+          summary: parsePnLReport(report),
+        })
+      }
+      return rows
     },
   })
 }

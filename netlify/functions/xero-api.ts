@@ -45,6 +45,18 @@ export default async function handler(req: Request): Promise<Response> {
       res = await callXero(accessToken)
     }
 
+    // Rate limited — back off and retry, honouring Retry-After when present.
+    // Delays are capped so total wait stays inside the function timeout.
+    for (let attempt = 0; res.status === 429 && attempt < 3; attempt++) {
+      const retryAfter = Number(res.headers.get('retry-after'))
+      const delayMs = Math.min(
+        retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt,
+        4000,
+      )
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      res = await callXero(accessToken)
+    }
+
     if (!res.ok) {
       const detail = await res.text()
       throw new HttpError(502, `Xero API ${res.status}: ${detail.slice(0, 500)}`)
