@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import { useAuth } from '@/auth/AuthProvider'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import InstallPrompt from '@/components/InstallPrompt'
+import FloatingChat from '@/components/insights/FloatingChat'
 import { navItems, mobileNavItems } from '@/components/nav-items'
 import { cn } from '@/lib/utils'
 
@@ -72,6 +73,7 @@ export default function AppShell() {
       </div>
 
       <InstallPrompt />
+      <FloatingChat />
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden">

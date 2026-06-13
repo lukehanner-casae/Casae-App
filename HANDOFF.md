@@ -120,6 +120,31 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
   to whole dollars; the first briefing after a quiet spell pays the function
   cold start before tokens start streaming (skeleton shows until then).
 
+## Session J — Casper floating chat
+
+- The "Ask the Analyst" chat moved out of /insights into a persistent
+  floating widget (`src/components/insights/FloatingChat.tsx`) mounted once
+  in AppShell, so it's available on every page. Collapsed: a sage circular
+  button (Brain icon) fixed bottom-right — `bottom-6 right-6` on desktop,
+  `bottom-20 right-4` on mobile so it clears the bottom tab bar — with an
+  animate-ping pulse until first opened that session. Expanded: a panel above
+  the button (380px wide, 500px tall, clamped to the viewport on small
+  screens) with a navy header bar ("Casper / Casae portfolio analyst",
+  chevron-down minimise), cream message area, and a sage send button.
+- Conversation state lives at the widget root (`useInsightsChat`, unchanged),
+  so history survives navigation and collapse/expand; a page refresh clears
+  it. The hardcoded welcome bubble — "Hi, I'm Casper the Casae analyst! Ask
+  me anything about your portfolio." — is rendered client-side only and never
+  sent to the function, so the API history still starts with a user turn.
+- The AI persona is now named Casper: the `ai-insights` system prompt opens
+  with "You are Casper, the Casae Living portfolio analyst…" (told to
+  introduce itself if asked, not to prefix every reply). That one prompt line
+  is the only backend change.
+- /insights keeps the Portfolio Briefing card; the chat section is replaced
+  with "Use the Casper chat widget in the bottom right to ask questions."
+- Widget z-index is 40 — above page content and the mobile tab bar (z-10),
+  below shadcn dialogs (z-50).
+
 ## Verified
 
 End-to-end against the live Supabase project (via a temporary test login, since removed): password login returns a session; RLS lets an authenticated user read all 5 properties → 18 rooms → lodgers (17/18 occupied, income $6,900, head lease $5,690, margin $1,210/wk — matches the dashboard); maintenance job and clean inserts succeed; receipts bucket accepts and serves an upload. Test rows/files were deleted afterwards.

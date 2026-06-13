@@ -109,8 +109,16 @@ Cormorant Garamond for headings. Jost for body.
   useDailyBriefing auto-generates on visit, cached in localStorage
   `casae-insights-briefing`, refetched when >6h old; useInsightsChat),
   src/components/insights/InsightsPanel.tsx (Portfolio Briefing card with
-  refresh + streaming caret + skeleton, chat with Casae-mark avatar, typing
-  dots, right-aligned user bubbles), src/pages/InsightsPage.tsx.
+  refresh + streaming caret + skeleton), src/pages/InsightsPage.tsx.
+- Session J ✓ Casper floating chat: the analyst chat lives in
+  src/components/insights/FloatingChat.tsx, mounted once in AppShell — sage
+  Brain button fixed bottom-right (above the mobile tab bar; pulses until
+  first opened), expanding to a 380×500 panel (navy header, minimise
+  chevron, cream message area, sage send). History is in-memory for the
+  session; the welcome bubble ("Hi, I'm Casper the Casae analyst! …") is
+  client-side only and never sent as API history. The ai-insights system
+  prompt names the persona Casper. /insights keeps the briefing card plus a
+  pointer to the widget.
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).
