@@ -93,6 +93,30 @@ export function portfolioMetrics(properties: PropertyWithRooms[]): PropertyMetri
   )
 }
 
+export type VacantRoom = {
+  property: PropertyWithRooms
+  room: RoomWithLodgers
+  /** rooms.vacant_since, else the latest former lodger's move-out, else null. */
+  vacantSince: string | null
+}
+
+/** Rooms that are empty right now, longest-vacant first. */
+export function findVacantRooms(properties: PropertyWithRooms[]): VacantRoom[] {
+  const out: VacantRoom[] = []
+  for (const property of properties) {
+    for (const room of property.rooms) {
+      if (room.status !== 'vacant') continue
+      const lastMoveOut = room.lodgers
+        .filter((l) => l.status === 'former' && l.expected_move_out)
+        .map((l) => l.expected_move_out!)
+        .sort()
+        .at(-1)
+      out.push({ property, room, vacantSince: room.vacant_since ?? lastMoveOut ?? null })
+    }
+  }
+  return out.sort((a, b) => (a.vacantSince ?? '').localeCompare(b.vacantSince ?? ''))
+}
+
 /** Fitout payback in weeks (fitout ÷ weekly margin), rounded to 1 decimal. */
 export function paybackWeeks(
   fitoutTotal: number,

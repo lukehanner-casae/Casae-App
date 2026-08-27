@@ -148,6 +148,11 @@ Cormorant Garamond for headings. Jost for body.
   pipeline health, 90-day conversion, vacate-pipeline preview, Log Vacate
   Notice button (also on Lodgers + lodger profile). ai-insights context now
   sends vacatePipeline + tenantPipeline instead of prospects.
+- Session L ✓ Dashboard trimmed to Occupancy by rooms / Properties vacating /
+  Weekly margin. Real lodger data imported via scripts/import-lodgers.py from a
+  spreadsheet in ~/Downloads (never in the repo); 3 properties in the sheet
+  (18 Windsor St, 105A Beatty Ave, 3/6 Oak Lane) don't exist in Supabase yet —
+  see HANDOFF.md Session L.
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).

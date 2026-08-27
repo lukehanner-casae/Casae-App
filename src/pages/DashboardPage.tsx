@@ -19,10 +19,8 @@ import {
   lodgerName,
   todayIso,
 } from '@/lib/format'
-import { bondStats, portfolioMetrics } from '@/lib/metrics'
-import { conversionRate, pipelineHealth, upcomingVacancies } from '@/lib/occupancy'
+import { bondStats, findVacantRooms, portfolioMetrics, type VacantRoom } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
-import type { PropertyWithRooms, RoomWithLodgers } from '@/lib/types'
 
 const PORTFOLIO_TARGET = 20
 const TARGET_LABEL = 'February 2027'
@@ -31,39 +29,9 @@ const TARGET_LABEL = 'February 2027'
 // Vacancy cost ticker
 // ---------------------------------------------------------------------------
 
-type Vacancy = {
-  property: PropertyWithRooms
-  room: RoomWithLodgers
-  /**
-   * When the room became vacant: rooms.vacant_since (set by auto-vacancy or
-   * the move-out flow), falling back to the latest former lodger move-out for
-   * rooms vacated before it existed, else today.
-   */
-  vacantSince: string
-}
-
-function findVacancies(properties: PropertyWithRooms[]): Vacancy[] {
-  const out: Vacancy[] = []
-  for (const property of properties) {
-    for (const room of property.rooms) {
-      if (room.status !== 'vacant') continue
-      const lastMoveOut = room.lodgers
-        .filter((l) => l.status === 'former' && l.expected_move_out)
-        .map((l) => l.expected_move_out!)
-        .sort()
-        .at(-1)
-      out.push({
-        property,
-        room,
-        vacantSince: room.vacant_since ?? lastMoveOut ?? todayIso(),
-      })
-    }
-  }
-  return out
-}
-
-function VacancyRow({ vacancy }: { vacancy: Vacancy }) {
-  const { property, room, vacantSince } = vacancy
+function VacancyRow({ vacancy }: { vacancy: VacantRoom }) {
+  const { property, room } = vacancy
+  const vacantSince = vacancy.vacantSince ?? todayIso()
   const [, tick] = useState(0)
 
   // Re-render every second so the foregone-income counter visibly climbs.
@@ -162,20 +130,13 @@ export default function DashboardPage() {
 
   const metrics = portfolioMetrics(properties ?? [])
   const bonds = bondStats(lodgers ?? [])
-  const vacancies = findVacancies(properties ?? [])
+  const vacancies = findVacantRooms(properties ?? [])
   const propertyCount = (properties ?? []).length
   const activeNotices = (notices ?? []).filter((n) => n.status === 'active')
-  const upcoming = upcomingVacancies(activeNotices)
-  const health = pipelineHealth(tenants ?? [])
-  const conversion = conversionRate(tenants ?? [])
 
   const occupancyPct =
     metrics.totalRooms > 0
       ? Math.round((metrics.occupiedRooms / metrics.totalRooms) * 100)
-      : 0
-  const revenueOccupancyPct =
-    metrics.fullIncome > 0
-      ? Math.round((metrics.occupiedIncome / metrics.fullIncome) * 100)
       : 0
 
   const events = useMemo<UpcomingEvent[]>(() => {
@@ -227,8 +188,8 @@ export default function DashboardPage() {
 
       {/* Occupancy + pipeline pulse */}
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => (
             <Card key={i}>
               <CardContent className="space-y-3 pt-5">
                 <Skeleton className="mx-auto h-3 w-2/3" />
@@ -238,23 +199,18 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <MetricCard
-            label="Occupancy by revenue"
-            value={`${revenueOccupancyPct}%`}
-            sub={`${formatAud(metrics.occupiedIncome)} of ${formatAud(metrics.fullIncome)}/wk`}
-            signature
-          />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           <MetricCard
             label="Occupancy by rooms"
             value={`${occupancyPct}%`}
             sub={`${metrics.occupiedRooms} of ${metrics.totalRooms} rooms`}
+            signature
           />
           <MetricCard
-            label="Vacating in 14 / 30 / 60 days"
-            value={`${upcoming.in14} / ${upcoming.in30} / ${upcoming.in60}`}
-            sub={`${activeNotices.length} room${activeNotices.length === 1 ? '' : 's'} with notice given`}
-            alert={upcoming.in14 > 0}
+            label="Properties vacating"
+            value={String(activeNotices.length)}
+            sub={`room${activeNotices.length === 1 ? '' : 's'} with notice given`}
+            alert={activeNotices.length > 0}
             to="/vacancies"
           />
           <MetricCard
@@ -264,37 +220,6 @@ export default function DashboardPage() {
           />
         </div>
       )}
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard
-          label="Viewings booked"
-          value={String(health.viewingBooked)}
-          sub={`${health.lead} new lead${health.lead === 1 ? '' : 's'} not yet booked`}
-          to="/pipeline"
-        />
-        <MetricCard
-          label="Viewed, deciding"
-          value={String(health.viewed)}
-          sub="warm — remarket first"
-          to="/pipeline"
-        />
-        <MetricCard
-          label="Leads unmatched"
-          value={String(health.unmatched)}
-          sub={`of ${health.openTotal} open lead${health.openTotal === 1 ? '' : 's'}`}
-          to="/pipeline"
-        />
-        <MetricCard
-          label={`Conversion · ${conversion.windowDays}d`}
-          value={conversion.pct == null ? '—' : `${conversion.pct}%`}
-          sub={
-            conversion.leads === 0
-              ? 'no leads logged in the window'
-              : `${conversion.converted} of ${conversion.leads} leads moved in`
-          }
-          to="/pipeline"
-        />
-      </div>
 
       {/* Vacate pipeline preview */}
       <Card>
