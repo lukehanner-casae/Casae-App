@@ -2,12 +2,11 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, Building2, Wrench } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useProperties } from '@/hooks/use-properties'
 import { useMaintenanceJobs } from '@/hooks/use-maintenance'
-import { formatAud, daysUntil } from '@/lib/format'
+import { formatAud, formatDate, daysUntil } from '@/lib/format'
 import { propertyMetrics, roomSquareClass } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
 import type { PropertyWithRooms } from '@/lib/types'
@@ -99,7 +98,7 @@ function PropertyCard({
               {rooms.map((room) => (
                 <span
                   key={room.id}
-                  title={`${room.room_name} — ${room.status}`}
+                  title={`${room.room_name} — ${room.status === 'notice_given' ? `vacating ${formatDate(room.next_vacate_date)}` : room.status}`}
                   className={cn(
                     'h-5 w-5 rounded-sm border',
                     roomSquareClass(room),
@@ -162,12 +161,8 @@ export default function PropertiesPage() {
         <EmptyState
           icon={Building2}
           title="No properties yet"
-          description="Secured properties will appear here. Work the acquisition pipeline to land the first one."
-          action={
-            <Button asChild size="sm">
-              <Link to="/pipeline">View pipeline</Link>
-            </Button>
-          }
+          description="Secured properties will appear here once they're added to the portfolio."
+
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

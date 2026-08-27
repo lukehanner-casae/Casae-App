@@ -39,6 +39,7 @@ function BondStatus({ lodger }: { lodger: Lodger | undefined }) {
 function RoomCard({ room }: { room: RoomWithLodgers }) {
   const lodger = activeLodger(room)
   const vacant = room.status === 'vacant'
+  const noticeGiven = room.status === 'notice_given'
 
   return (
     <Card>
@@ -48,7 +49,7 @@ function RoomCard({ room }: { room: RoomWithLodgers }) {
             <span
               className={cn(
                 'h-2.5 w-2.5 rounded-full',
-                vacant ? 'bg-vacant' : 'bg-sage',
+                vacant ? 'bg-vacant' : noticeGiven ? 'bg-warning' : 'bg-sage',
               )}
             />
             <h3 className="font-heading text-xl font-semibold text-navy">
@@ -67,6 +68,14 @@ function RoomCard({ room }: { room: RoomWithLodgers }) {
             {room.size_category === 'small' && (
               <Badge variant="outline" className="border-stone text-xs">
                 Small
+              </Badge>
+            )}
+            {noticeGiven && room.next_vacate_date && (
+              <Badge
+                variant="outline"
+                className="border-warning/50 bg-amber-50 text-xs text-amber-700"
+              >
+                Vacating {formatDate(room.next_vacate_date)}
               </Badge>
             )}
           </div>
@@ -100,8 +109,12 @@ function RoomCard({ room }: { room: RoomWithLodgers }) {
               <p>{formatDate(lodger.move_in_date)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Expected move-out</p>
-              <p>{formatDate(lodger.expected_move_out)}</p>
+              <p className="text-xs text-muted-foreground">
+                {noticeGiven ? 'Vacate date' : 'Expected move-out'}
+              </p>
+              <p className={cn(noticeGiven && 'font-medium text-vacant')}>
+                {formatDate(room.next_vacate_date ?? lodger.expected_move_out)}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Bond</p>
@@ -123,6 +136,12 @@ function RoomCard({ room }: { room: RoomWithLodgers }) {
         ) : (
           <p className="mt-3 font-body text-sm font-medium text-vacant">
             Vacant
+            {room.vacant_since ? (
+              <span className="font-normal text-muted-foreground">
+                {' '}
+                since {formatDate(room.vacant_since)}
+              </span>
+            ) : null}
           </p>
         )}
       </CardContent>

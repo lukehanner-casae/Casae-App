@@ -145,6 +145,18 @@ Built June 2026. All sessions from both build briefs are complete; `npm run buil
 - Widget z-index is 40 — above page content and the mobile tab bar (z-10),
   below shadcn dialogs (z-50).
 
+## Session K — occupancy & tenant pipeline pivot (27 Aug 2026)
+
+Implements `Casae_Ops_Redesign_Spec_v2.md` in its suggested build order.
+
+- **Nav**: Cleaning and Maintenance removed from `nav-items.ts` only (routes, pages, hooks, tables untouched — they still work by URL). The acquisition pipeline page and `use-prospects.ts` are deleted; `property_prospects` stays in the schema, unused. New `Vacancies` and `Pipeline` (tenant) tabs sit right after Dashboard; the mobile bar is Dashboard / Vacancies / Pipeline / Properties / More (Insights moved to More — Casper's floating button still covers chat everywhere).
+- **Migration 007** (applied to the remote, tracked): `pipeline_tenants`, `vacate_notices`, `occupancy_history` + RLS; `rooms.vacated_at` → `vacant_since`, new `rooms.next_vacate_date` (trigger-maintained), `notice_given` status on rooms and lodgers; all lifecycle actions are Postgres functions (see CLAUDE.md). Circular FK between `pipeline_tenants.linked_vacancy_id` and `vacate_notices.replacement_pipeline_tenant_id`, so PostgREST embeds name the constraint.
+- **Auto-vacancy** = Spec §6.1 option 2, stored `vacant_since`, plus a safety net: `apply_passed_vacate_notices()` runs from pg_cron (`casae-auto-vacancy`, 16:05 UTC = 00:05 Perth, confirmed scheduled and active) **and** is called by `useVacateNotices()` before every read, so a room is never shown occupied past its date even if cron is off. `vacant_since` and the history `changed_at` are always midnight Perth on the vacate date (capped at now), never the run time, so retrospective occupancy is accurate.
+- **Lifecycle rules**: a `notice_given` room/lodger still counts as occupied (rent still coming in) until the date passes. Convert (move-in) creates the lodger as `current` if the move-in date has arrived (and closes the room's notice out immediately, room stays occupied) or `pending` for a future date (notice → `confirmed`, closes on the vacate date with the room staying occupied because a pending lodger holds it). Cancelling a notice returns the lodger to `current` and unassigns any matched lead. The old "Record move-out" flow still works and completes any active notice for that lodger. Manually choosing "Active Lodger" in the pipeline stage dropdown opens the move-in dialog rather than just flipping the status.
+- **Conversion rate** = leads created in the last 90 days that have `converted_at` set. **Pipeline health** counts open leads (lead / viewing_booked / viewed) and how many have no matched vacancy.
+- **Verified** against the live project with a rolled-back transaction: log notice → room `notice_given` + `next_vacate_date`, lodger `notice_given`; match lead → `lead_assigned` both sides; cancel → everything reverts; backdated notice + auto-vacancy → room `vacant`, `vacant_since` = vacate date, single `notice_given→vacant (auto)` history row; convert into the vacant room → lodger `current` with bond + pipeline note, pipeline record `active` + linked; second notice → pipeline record `notice_given`; future-dated move-in into a notice_given room → notice `confirmed`, incoming lodger `pending`. `npm run build` and `npm run lint` clean.
+- **Not done / to watch**: no UI yet for browsing `occupancy_history` (it's populated, incl. an 18-row backfill of current room states); the seed script still truncates `property_prospects` (harmless) and doesn't seed pipeline data; Maintenance/Cleans tabs remain on the property detail page and Inspections still offers "create maintenance job" — the spec only asked for nav removal.
+
 ## Verified
 
 End-to-end against the live Supabase project (via a temporary test login, since removed): password login returns a session; RLS lets an authenticated user read all 5 properties → 18 rooms → lodgers (17/18 occupied, income $6,900, head lease $5,690, margin $1,210/wk — matches the dashboard); maintenance job and clean inserts succeed; receipts bucket accepts and serves an upload. Test rows/files were deleted afterwards.
@@ -153,6 +165,7 @@ Sessions A–F verification (12 Jun 2026): migrations 004–006 applied to the r
 
 ## Manual steps needed
 
+0. **Confirm the nightly cron actually fires** — `select * from cron.job_run_details order by start_time desc limit 5;` after the first night. If pg_cron ever gets disabled, nothing breaks (the app runs the same function on load) but `occupancy_history.changed_at` is still accurate because it uses the vacate date.
 1. **Team logins** — only `luke.hanner@crosspondcapital.com` exists in Supabase Auth. Create Erin, Brenna and Kaylin in the dashboard (Auth → Users → Add user, with "auto confirm"). A profiles row is created automatically; each person can set their display name in Settings → Account.
 2. **Confirm placeholder seed data** — TBC lodger names/rooms (Scarborough, TH8), bond amounts and received dates, move-in dates, head-lease start/end dates (all currently null, so cards show "Lease end not set").
 3. **Future integrations env vars**: `RESEND_API_KEY` (HubDoc test email) is still unwired. Xero's `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` are already in the Netlify site env and are now used by the functions.

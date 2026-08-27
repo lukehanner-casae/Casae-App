@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import DocumentsPanel from '@/components/documents/DocumentsPanel'
 import LodgerFormDialog from '@/components/lodgers/LodgerFormDialog'
 import MoveOutDialog from '@/components/lodgers/MoveOutDialog'
+import LogVacateNoticeDialog from '@/components/vacancies/LogVacateNoticeDialog'
 import { useAuth } from '@/auth/AuthProvider'
 import { useLodger, useUpdateLodger } from '@/hooks/use-lodgers'
 import {
@@ -90,15 +91,18 @@ export default function LodgerProfilePage() {
             <Badge
               variant="outline"
               className={cn(
-                'capitalize',
                 lodger.status === 'current'
                   ? 'border-sage/40 bg-sage/10 text-sage'
-                  : lodger.status === 'pending'
-                    ? 'border-warning/50 bg-amber-50 text-amber-700'
-                    : 'border-stone bg-muted text-muted-foreground',
+                  : lodger.status === 'notice_given'
+                    ? 'border-vacant/40 bg-red-50 text-vacant'
+                    : lodger.status === 'pending'
+                      ? 'border-warning/50 bg-amber-50 text-amber-700'
+                      : 'border-stone bg-muted text-muted-foreground',
               )}
             >
-              {lodger.status}
+              {lodger.status === 'notice_given'
+                ? `Notice given · vacating ${formatDate(lodger.room?.next_vacate_date ?? lodger.expected_move_out)}`
+                : lodger.status}
             </Badge>
             {lodger.room?.property && (
               <Link
@@ -119,6 +123,18 @@ export default function LodgerProfilePage() {
               </Button>
             }
           />
+          {(lodger.status === 'current' || lodger.status === 'pending') && lodger.room && (
+            <LogVacateNoticeDialog
+              defaultPropertyId={lodger.room.property_id}
+              defaultRoomId={lodger.room.id}
+              defaultLodgerId={lodger.id}
+              trigger={
+                <Button size="sm" variant="secondary">
+                  <DoorOpen className="h-4 w-4" /> Log vacate notice
+                </Button>
+              }
+            />
+          )}
           {lodger.status !== 'former' && (
             <MoveOutDialog
               lodger={lodger}

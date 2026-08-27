@@ -39,8 +39,8 @@ Cormorant Garamond for headings. Jost for body.
 - Session 6 ✓ Expenses + fitout (/financials): receipt upload to private `receipts`
   bucket (migration 002, path {property_id}/{YYYY-MM}/{ts}-{file}), per-property
   totals, disabled HubDoc toggle, payback ranking table.
-- Session 7 ✓ Acquisition pipeline (/pipeline): 7-stage kanban, dropdown stage moves,
-  auto projected margin, priority-suburb filter, summary + progress bar.
+- Session 7 ✓ Acquisition pipeline (/pipeline) — RETIRED in Session K (page + hook
+  deleted; `property_prospects` table left in place, unused).
 - Session 8 ✓ Contacts CRM (/contacts): type filter, append-only notes (bumps
   last-contact date), property links (Joe Nardizzi / Choice Estates → Oak Lane).
 - Session A ✓ Fixes: `profiles` table (migration 004) synced from auth.users via
@@ -119,6 +119,35 @@ Cormorant Garamond for headings. Jost for body.
   client-side only and never sent as API history. The ai-insights system
   prompt names the persona Casper. /insights keeps the briefing card plus a
   pointer to the widget.
+- Session K ✓ Occupancy & tenant pipeline pivot (Casae_Ops_Redesign_Spec_v2.md,
+  migration 007). Nav: Cleaning + Maintenance hidden (routes/pages/tables kept —
+  re-add to src/components/nav-items.ts to restore); old acquisition Pipeline
+  deleted from router; new Vacancies (/vacancies) + Pipeline (/pipeline, tenant
+  pipeline) tabs, both on the mobile bar. Tables: `pipeline_tenants` (lead →
+  viewing_booked → viewed → active → notice_given → vacated; linked_lodger_id /
+  linked_vacancy_id / converted_at), `vacate_notices` (replacement_status
+  unassigned / lead_assigned / confirmed, status active / completed / cancelled),
+  `occupancy_history` (every rooms.status transition via trigger, source
+  auto / manual / backfill). `rooms.vacated_at` renamed `vacant_since`;
+  `rooms.next_vacate_date` is trigger-maintained from active notices; rooms and
+  lodgers gain status `notice_given` (still counts as occupied — see
+  isOccupied / isResident in src/lib/metrics.ts). All multi-table writes are
+  Postgres functions called via rpc: log_vacate_notice, cancel_vacate_notice,
+  match_lead_to_vacancy, unmatch_lead, convert_pipeline_tenant (move-in),
+  complete_vacate_notice, apply_passed_vacate_notices (auto-vacancy: flips
+  passed notices to vacant with vacant_since = vacate date; scheduled by
+  pg_cron `casae-auto-vacancy` daily 00:05 Perth AND called by
+  useVacateNotices() on load — idempotent). casae_today() = Perth date.
+  Frontend: src/lib/occupancy.ts (stages, buckets, dashboard metrics),
+  src/hooks/use-vacate-notices.ts + use-pipeline-tenants.ts (embeds name the
+  FK: `pipeline_tenants!vacate_notices_replacement_pipeline_tenant_id_fkey`),
+  src/components/vacancies/{LogVacateNoticeDialog,VacatePipelineTable,
+  MatchLeadDialog}.tsx, src/components/pipeline/{LeadFormDialog,
+  ConvertLeadDialog}.tsx, src/pages/{VacanciesPage,TenantPipelinePage}.tsx.
+  Dashboard leads with occupancy by revenue + rooms, vacating 14/30/60,
+  pipeline health, 90-day conversion, vacate-pipeline preview, Log Vacate
+  Notice button (also on Lodgers + lodger profile). ai-insights context now
+  sends vacatePipeline + tenantPipeline instead of prospects.
 - Shared layers: src/lib/types.ts (DB row types), src/lib/format.ts (AUD/date/notes
   helpers), src/lib/metrics.ts (margin, occupancy, bond float, payback),
   src/hooks/use-*.ts (one TanStack Query hook file per domain).

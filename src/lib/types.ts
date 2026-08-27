@@ -1,23 +1,14 @@
 // Row types mirroring the Supabase schema (migration 001).
 
 export type PropertyStatus = 'active' | 'prospect' | 'archived'
-export type RoomStatus = 'occupied' | 'vacant' | 'maintenance'
-export type LodgerStatus = 'current' | 'former' | 'pending'
+export type RoomStatus = 'occupied' | 'notice_given' | 'vacant' | 'maintenance'
+export type LodgerStatus = 'current' | 'notice_given' | 'former' | 'pending'
 export type JobStatus = 'open' | 'in-progress' | 'completed' | 'cancelled'
 export type JobPriority = 'low' | 'medium' | 'high' | 'urgent'
 export type CleanStatus = 'scheduled' | 'completed' | 'skipped'
 export type CleanType = 'routine' | 'end-of-tenancy' | 'pre-move-in'
 export type Recurrence = 'none' | 'weekly' | 'fortnightly'
 export type ContactType = 'landlord' | 'agent' | 'contractor' | 'other'
-export type ProspectStage =
-  | 'prospect'
-  | 'viewing-booked'
-  | 'viewed'
-  | 'proposal-sent'
-  | 'negotiating'
-  | 'secured'
-  | 'dead'
-export type ProspectSource = 'kaylin-outreach' | 'agent' | 'private' | 'referral'
 
 export interface Property {
   id: string
@@ -46,8 +37,10 @@ export interface Room {
   is_couple_room: boolean
   size_category: string | null
   status: RoomStatus
-  /** When the room became vacant; null while occupied. */
-  vacated_at: string | null
+  /** When the room became vacant (auto-vacancy / move-out); null while occupied. */
+  vacant_since: string | null
+  /** Earliest active vacate notice; trigger-maintained from vacate_notices. */
+  next_vacate_date: string | null
   notes: string | null
 }
 
@@ -144,24 +137,6 @@ export interface FitoutItem {
   notes: string | null
 }
 
-export interface PropertyProspect {
-  id: string
-  address: string | null
-  suburb: string | null
-  est_rooms: number | null
-  est_weekly_head_lease: number | null
-  est_weekly_room_income: number | null
-  projected_weekly_margin: number | null
-  source: ProspectSource | null
-  agent_contact_id: string | null
-  stage: ProspectStage
-  first_contact_date: string | null
-  viewing_date: string | null
-  assigned_to_user_id: string | null
-  notes: string | null
-  created_at: string
-}
-
 export type InspectionCondition = 'good' | 'fair' | 'poor'
 
 export interface Inspection {
@@ -176,6 +151,62 @@ export interface Inspection {
   follow_up_required: boolean
   follow_up_notes: string | null
   created_at: string
+}
+
+// Tenant pipeline + vacate pipeline (migration 007, Redesign Spec v2).
+
+export type PipelineTenantStatus =
+  | 'lead'
+  | 'viewing_booked'
+  | 'viewed'
+  | 'active'
+  | 'notice_given'
+  | 'vacated'
+export type PipelineTenantSource = 'flatmates' | 'referral' | 'walk-in' | 'other'
+export type ReplacementStatus = 'unassigned' | 'lead_assigned' | 'confirmed'
+export type VacateNoticeStatus = 'active' | 'completed' | 'cancelled'
+
+export interface PipelineTenant {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  source: PipelineTenantSource | null
+  property_interest: string | null
+  room_interest: string | null
+  viewing_date: string | null
+  status: PipelineTenantStatus
+  notes: string | null
+  linked_lodger_id: string | null
+  linked_vacancy_id: string | null
+  converted_at: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface VacateNotice {
+  id: string
+  property_id: string
+  room_id: string
+  lodger_id: string | null
+  vacate_date: string
+  logged_by: string | null
+  logged_at: string
+  replacement_status: ReplacementStatus
+  replacement_pipeline_tenant_id: string | null
+  status: VacateNoticeStatus
+  completed_at: string | null
+  notes: string | null
+}
+
+export interface OccupancyHistory {
+  id: string
+  room_id: string
+  property_id: string
+  status: RoomStatus
+  previous_status: RoomStatus | null
+  changed_at: string
+  source: 'auto' | 'manual' | 'backfill'
 }
 
 export interface Profile {

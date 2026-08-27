@@ -6,7 +6,7 @@ export default function InsightsPage() {
     <div>
       <PageHeader
         title="Insights"
-        description="Your AI portfolio analyst — a daily briefing on vacancy, margin, maintenance and pipeline, plus answers to anything else, grounded in live Casae data."
+        description="Your AI portfolio analyst — a daily briefing on occupancy, upcoming vacancies, the tenant pipeline and margin, plus answers to anything else, grounded in live Casae data."
       />
       <InsightsPanel />
     </div>

@@ -58,7 +58,7 @@ export function useCreateLodger() {
       if (lodger.room_id && lodger.status !== 'former') {
         await supabase
           .from('rooms')
-          .update({ status: 'occupied', vacated_at: null })
+          .update({ status: 'occupied', vacant_since: null })
           .eq('id', lodger.room_id)
       }
       return data as Lodger
@@ -104,11 +104,19 @@ export function useRecordMoveOut() {
           .from('rooms')
           .update({
             status: 'vacant',
-            vacated_at: new Date(moveOutDate).toISOString(),
+            vacant_since: new Date(moveOutDate).toISOString(),
           })
           .eq('id', lodger.room_id)
         if (roomError) throw roomError
       }
+
+      // Any notice logged for this lodger is now fulfilled.
+      const { error: noticeError } = await supabase
+        .from('vacate_notices')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('lodger_id', lodger.id)
+        .eq('status', 'active')
+      if (noticeError) throw noticeError
 
       if (lodger.room?.property_id) {
         const { error: cleanError } = await supabase.from('cleans').insert({
@@ -124,6 +132,8 @@ export function useRecordMoveOut() {
     onSuccess: () => {
       invalidateLodgerData(qc)
       qc.invalidateQueries({ queryKey: ['cleans'] })
+      qc.invalidateQueries({ queryKey: ['vacate_notices'] })
+      qc.invalidateQueries({ queryKey: ['pipeline_tenants'] })
     },
   })
 }

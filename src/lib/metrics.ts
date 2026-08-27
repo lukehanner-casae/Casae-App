@@ -1,26 +1,41 @@
 // Co-living unit economics, derived from properties + rooms + lodgers.
 // Occupancy is driven by room.status; income counts occupied rooms only.
+// A room whose lodger has given notice is still occupied (and still paying)
+// until the vacate date passes and auto-vacancy flips it to vacant.
 
 import { daysUntil } from '@/lib/format'
-import type { Lodger, PropertyWithRooms, RoomWithLodgers } from '@/lib/types'
+import type {
+  Lodger,
+  LodgerStatus,
+  PropertyWithRooms,
+  RoomWithLodgers,
+} from '@/lib/types'
 
-/** The lodger currently attached to a room (current or pending move-in). */
+/** Lodger statuses that mean "living in the room right now". */
+export const RESIDENT_STATUSES: readonly LodgerStatus[] = ['current', 'notice_given']
+
+export function isResident(lodger: Pick<Lodger, 'status'>): boolean {
+  return RESIDENT_STATUSES.includes(lodger.status)
+}
+
+/** The lodger currently attached to a room (resident, else pending move-in). */
 export function activeLodger(room: RoomWithLodgers): Lodger | undefined {
   return (
-    room.lodgers.find((l) => l.status === 'current') ??
+    room.lodgers.find(isResident) ??
     room.lodgers.find((l) => l.status === 'pending')
   )
 }
 
 export function isOccupied(room: RoomWithLodgers): boolean {
-  return room.status === 'occupied'
+  return room.status === 'occupied' || room.status === 'notice_given'
 }
 
-/** True when the room's current lodger has an expected move-out within 30 days. */
+/** True when the room is expected to vacate within 30 days (notice or move-out). */
 export function moveOutSoon(room: RoomWithLodgers): boolean {
-  const lodger = room.lodgers.find((l) => l.status === 'current')
-  if (!lodger?.expected_move_out) return false
-  const days = daysUntil(lodger.expected_move_out)
+  const lodger = room.lodgers.find(isResident)
+  const date = room.next_vacate_date ?? lodger?.expected_move_out
+  if (!date) return false
+  const days = daysUntil(date)
   return days != null && days >= 0 && days <= 30
 }
 
@@ -129,7 +144,9 @@ export function bondStats(lodgers: Lodger[]): BondStats {
 
 /** Room square colour for occupancy grids, per brand spec. */
 export function roomSquareClass(room: RoomWithLodgers): string {
-  if (moveOutSoon(room)) return 'bg-warning border-warning'
+  if (room.status === 'notice_given' || moveOutSoon(room)) {
+    return 'bg-warning border-warning'
+  }
   if (isOccupied(room)) return 'bg-sage border-sage'
   return 'bg-transparent border-vacant border-2'
 }

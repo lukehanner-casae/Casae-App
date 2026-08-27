@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, DoorOpen, Sparkles, Wrench } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Link } from 'react-router-dom'
+import { ArrowRight, CalendarClock, DoorOpen, Eye, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import LogVacateNoticeDialog from '@/components/vacancies/LogVacateNoticeDialog'
+import VacatePipelineTable from '@/components/vacancies/VacatePipelineTable'
 import { useProperties } from '@/hooks/use-properties'
 import { useLodgers } from '@/hooks/use-lodgers'
-import { useMaintenanceJobs } from '@/hooks/use-maintenance'
-import { useCleans } from '@/hooks/use-cleans'
+import { usePipelineTenants } from '@/hooks/use-pipeline-tenants'
+import { useVacateNotices } from '@/hooks/use-vacate-notices'
 import {
   daysSince,
   daysUntil,
@@ -17,7 +20,7 @@ import {
   todayIso,
 } from '@/lib/format'
 import { bondStats, portfolioMetrics } from '@/lib/metrics'
-import { priorityClass } from '@/components/maintenance/priority'
+import { conversionRate, pipelineHealth, upcomingVacancies } from '@/lib/occupancy'
 import { cn } from '@/lib/utils'
 import type { PropertyWithRooms, RoomWithLodgers } from '@/lib/types'
 
@@ -32,9 +35,9 @@ type Vacancy = {
   property: PropertyWithRooms
   room: RoomWithLodgers
   /**
-   * When the room became vacant: rooms.vacated_at (set by the move-out flow),
-   * falling back to the latest former lodger move-out for rooms vacated
-   * before vacated_at existed, else today.
+   * When the room became vacant: rooms.vacant_since (set by auto-vacancy or
+   * the move-out flow), falling back to the latest former lodger move-out for
+   * rooms vacated before it existed, else today.
    */
   vacantSince: string
 }
@@ -52,7 +55,7 @@ function findVacancies(properties: PropertyWithRooms[]): Vacancy[] {
       out.push({
         property,
         room,
-        vacantSince: room.vacated_at ?? lastMoveOut ?? todayIso(),
+        vacantSince: room.vacant_since ?? lastMoveOut ?? todayIso(),
       })
     }
   }
@@ -95,7 +98,7 @@ function VacancyRow({ vacancy }: { vacancy: Vacancy }) {
 }
 
 // ---------------------------------------------------------------------------
-// Upcoming events (next 14 days)
+// Upcoming events (next 14 days): vacate dates + booked viewings
 // ---------------------------------------------------------------------------
 
 type UpcomingEvent = {
@@ -103,131 +106,212 @@ type UpcomingEvent = {
   icon: typeof DoorOpen
   label: string
   detail: string
-  badge?: { text: string; className: string }
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  signature,
+  alert,
+  to,
+}: {
+  label: string
+  value: string
+  sub?: string
+  signature?: boolean
+  alert?: boolean
+  to?: string
+}) {
+  const body = (
+    <Card className={cn(to && 'h-full transition-shadow hover:shadow-md')}>
+      <CardContent className="pt-5 text-center">
+        <p className="font-body text-xs uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <p
+          className={cn(
+            'font-heading font-semibold',
+            alert ? 'text-vacant' : 'text-navy',
+            signature ? 'text-5xl lg:text-7xl' : 'text-4xl lg:text-5xl',
+          )}
+        >
+          {value}
+        </p>
+        {signature ? <div className="mx-auto mt-2 h-1 w-16 bg-sage" /> : null}
+        {sub ? (
+          <p className="mt-1 font-body text-xs text-muted-foreground">{sub}</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+  return to ? (
+    <Link to={to} className="block">
+      {body}
+    </Link>
+  ) : (
+    body
+  )
 }
 
 export default function DashboardPage() {
   const { data: properties, isLoading } = useProperties()
   const { data: lodgers } = useLodgers()
-  const { data: jobs } = useMaintenanceJobs()
-  const { data: cleans } = useCleans()
+  const { data: notices } = useVacateNotices()
+  const { data: tenants } = usePipelineTenants()
 
   const metrics = portfolioMetrics(properties ?? [])
   const bonds = bondStats(lodgers ?? [])
   const vacancies = findVacancies(properties ?? [])
   const propertyCount = (properties ?? []).length
+  const activeNotices = (notices ?? []).filter((n) => n.status === 'active')
+  const upcoming = upcomingVacancies(activeNotices)
+  const health = pipelineHealth(tenants ?? [])
+  const conversion = conversionRate(tenants ?? [])
 
   const occupancyPct =
     metrics.totalRooms > 0
       ? Math.round((metrics.occupiedRooms / metrics.totalRooms) * 100)
       : 0
+  const revenueOccupancyPct =
+    metrics.fullIncome > 0
+      ? Math.round((metrics.occupiedIncome / metrics.fullIncome) * 100)
+      : 0
 
   const events = useMemo<UpcomingEvent[]>(() => {
     const list: UpcomingEvent[] = []
-    const today = todayIso()
-
-    for (const lodger of lodgers ?? []) {
-      if (lodger.status !== 'current' || !lodger.expected_move_out) continue
-      const days = daysUntil(lodger.expected_move_out)
+    for (const n of activeNotices) {
+      const days = daysUntil(n.vacate_date)
       if (days == null || days < 0 || days > 14) continue
       list.push({
-        date: lodger.expected_move_out,
+        date: n.vacate_date,
         icon: DoorOpen,
-        label: `Move-out — ${lodgerName(lodger)}`,
-        detail: `${lodger.room?.property?.display_name ?? ''} · ${lodger.room?.room_name ?? ''} · ${formatDate(lodger.expected_move_out)}`,
+        label: `Vacating — ${n.lodger ? lodgerName(n.lodger) : 'lodger'}`,
+        detail: `${n.property?.display_name ?? ''} · ${n.room?.room_name ?? ''} · ${formatDate(n.vacate_date)}${n.replacement ? ` · replacement: ${n.replacement.name}` : ' · no replacement yet'}`,
       })
     }
-
-    for (const job of jobs ?? []) {
-      if (job.status !== 'open' && job.status !== 'in-progress') continue
-      if (job.priority !== 'urgent' && job.priority !== 'high') continue
+    for (const t of tenants ?? []) {
+      if (t.status !== 'viewing_booked' || !t.viewing_date) continue
+      const days = daysUntil(t.viewing_date)
+      if (days == null || days < 0 || days > 14) continue
       list.push({
-        date: job.created_at.slice(0, 10),
-        icon: Wrench,
-        label: job.title,
-        detail: `${job.property?.display_name ?? ''}${job.room ? ` · ${job.room.room_name}` : ''}`,
-        badge: {
-          text: job.priority,
-          className: priorityClass[job.priority],
-        },
+        date: t.viewing_date,
+        icon: Eye,
+        label: `Viewing — ${t.name}`,
+        detail: `${t.property?.display_name ?? 'Any property'}${t.room?.room_name ? ` · ${t.room.room_name}` : ''} · ${formatDate(t.viewing_date)}`,
       })
     }
-
-    for (const clean of cleans ?? []) {
-      if (clean.status !== 'scheduled' || !clean.scheduled_date) continue
-      const days = daysUntil(clean.scheduled_date)
-      if (days == null || days < 0 || days > 1) continue
-      list.push({
-        date: clean.scheduled_date,
-        icon: Sparkles,
-        label: `Clean — ${clean.property?.display_name ?? ''}`,
-        detail: `${clean.scheduled_date === today ? 'Today' : 'Tomorrow'}${clean.assigned_to ? ` · ${clean.assigned_to}` : ''}`,
-      })
-    }
-
     return list.sort((a, b) => a.date.localeCompare(b.date))
-  }, [lodgers, jobs, cleans])
+  }, [activeNotices, tenants])
 
   const monthlyRunRate = (metrics.margin * 52) / 12
   const vacancyCostWeekly = metrics.fullMargin - metrics.margin
 
-  const pulse = [
-    { label: 'Weekly Room Income', value: formatAud(metrics.occupiedIncome) },
-    { label: 'Weekly Head Lease', value: formatAud(metrics.headLease) },
-    { label: 'Weekly Margin', value: formatAud(metrics.margin), signature: true },
-    {
-      label: 'Portfolio Occupancy',
-      value: `${metrics.occupiedRooms} / ${metrics.totalRooms}`,
-      sub: `${occupancyPct}% occupied`,
-    },
-  ]
-
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="font-heading text-4xl font-semibold text-navy">
-          Dashboard
-        </h1>
-        <div className="mt-2 h-0.5 w-12 bg-sage" />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-4xl font-semibold text-navy">
+            Dashboard
+          </h1>
+          <div className="mt-2 h-0.5 w-12 bg-sage" />
+        </div>
+        <LogVacateNoticeDialog
+          trigger={
+            <Button size="sm">
+              <Plus className="h-4 w-4" /> Log vacate notice
+            </Button>
+          }
+        />
       </div>
 
-      {/* Portfolio pulse */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {isLoading
-          ? Array.from({ length: 4 }, (_, i) => (
-              <Card key={i}>
-                <CardContent className="space-y-3 pt-5">
-                  <Skeleton className="mx-auto h-3 w-2/3" />
-                  <Skeleton className="mx-auto h-12 w-1/2" />
-                </CardContent>
-              </Card>
-            ))
-          : pulse.map(({ label, value, sub, signature }) => (
-          <Card key={label}>
-            <CardContent className="pt-5 text-center">
-              <p className="font-body text-xs uppercase tracking-wide text-muted-foreground">
-                {label}
-              </p>
-              <p
-                className={cn(
-                  'font-heading font-semibold text-navy',
-                  signature ? 'text-5xl lg:text-7xl' : 'text-4xl lg:text-5xl',
-                )}
-              >
-                {value}
-              </p>
-              {signature ? (
-                <div className="mx-auto mt-2 h-1 w-16 bg-sage" />
-              ) : null}
-              {sub ? (
-                <p className="mt-1 font-body text-xs text-muted-foreground">
-                  {sub}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+      {/* Occupancy + pipeline pulse */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Card key={i}>
+              <CardContent className="space-y-3 pt-5">
+                <Skeleton className="mx-auto h-3 w-2/3" />
+                <Skeleton className="mx-auto h-12 w-1/2" />
+              </CardContent>
+            </Card>
           ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard
+            label="Occupancy by revenue"
+            value={`${revenueOccupancyPct}%`}
+            sub={`${formatAud(metrics.occupiedIncome)} of ${formatAud(metrics.fullIncome)}/wk`}
+            signature
+          />
+          <MetricCard
+            label="Occupancy by rooms"
+            value={`${occupancyPct}%`}
+            sub={`${metrics.occupiedRooms} of ${metrics.totalRooms} rooms`}
+          />
+          <MetricCard
+            label="Vacating in 14 / 30 / 60 days"
+            value={`${upcoming.in14} / ${upcoming.in30} / ${upcoming.in60}`}
+            sub={`${activeNotices.length} room${activeNotices.length === 1 ? '' : 's'} with notice given`}
+            alert={upcoming.in14 > 0}
+            to="/vacancies"
+          />
+          <MetricCard
+            label="Weekly Margin"
+            value={formatAud(metrics.margin)}
+            sub={`of ${formatAud(metrics.fullMargin)} at full occupancy`}
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <MetricCard
+          label="Viewings booked"
+          value={String(health.viewingBooked)}
+          sub={`${health.lead} new lead${health.lead === 1 ? '' : 's'} not yet booked`}
+          to="/pipeline"
+        />
+        <MetricCard
+          label="Viewed, deciding"
+          value={String(health.viewed)}
+          sub="warm — remarket first"
+          to="/pipeline"
+        />
+        <MetricCard
+          label="Leads unmatched"
+          value={String(health.unmatched)}
+          sub={`of ${health.openTotal} open lead${health.openTotal === 1 ? '' : 's'}`}
+          to="/pipeline"
+        />
+        <MetricCard
+          label={`Conversion · ${conversion.windowDays}d`}
+          value={conversion.pct == null ? '—' : `${conversion.pct}%`}
+          sub={
+            conversion.leads === 0
+              ? 'no leads logged in the window'
+              : `${conversion.converted} of ${conversion.leads} leads moved in`
+          }
+          to="/pipeline"
+        />
       </div>
+
+      {/* Vacate pipeline preview */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="font-heading text-xl text-navy">
+            Vacate Pipeline
+          </CardTitle>
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/vacancies">
+              All vacancies <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <VacatePipelineTable limit={5} showFilters={false} />
+        </CardContent>
+      </Card>
 
       {/* Vacancy cost ticker */}
       <Card>
@@ -242,12 +326,103 @@ export default function DashboardPage() {
               Portfolio fully occupied — no income being forgone.
             </p>
           ) : (
-            vacancies.map((v) => (
-              <VacancyRow key={v.room.id} vacancy={v} />
-            ))
+            vacancies.map((v) => <VacancyRow key={v.room.id} vacancy={v} />)
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Upcoming events */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 font-heading text-xl text-navy">
+              <CalendarClock className="h-4 w-4 text-sage" /> Next 14 days
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-0 pb-0">
+            {events.length === 0 ? (
+              <p className="px-4 pb-4 font-body text-sm text-muted-foreground">
+                No vacate dates or viewings in the next fortnight.
+              </p>
+            ) : (
+              events.map((event, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 border-b border-stone px-4 py-2.5 last:border-b-0"
+                >
+                  <event.icon className="h-4 w-4 shrink-0 text-sage" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-body text-sm font-medium text-navy">
+                      {event.label}
+                    </p>
+                    <p className="truncate font-body text-xs text-muted-foreground">
+                      {event.detail}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Weekly margin snapshot */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="font-heading text-xl text-navy">
+              Weekly Margin Snapshot
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5 font-body text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Room income</span>
+              <span className="font-medium text-navy">
+                {formatAud(metrics.occupiedIncome)}/wk
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Head lease</span>
+              <span className="font-medium text-navy">
+                {formatAud(metrics.headLease)}/wk
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">
+                Full-occupancy potential
+              </span>
+              <span className="font-medium text-navy">
+                {formatAud(metrics.fullMargin)}/wk
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Cost of vacancies</span>
+              <span
+                className={cn(
+                  'font-medium',
+                  vacancyCostWeekly > 0 ? 'text-vacant' : 'text-sage',
+                )}
+              >
+                {vacancyCostWeekly > 0
+                  ? `−${formatAud(vacancyCostWeekly)}/wk`
+                  : 'None'}
+              </span>
+            </div>
+            <div className="border-t border-stone pt-2.5">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Monthly run rate</span>
+                <span className="font-medium text-navy">
+                  {formatAud(monthlyRunRate)}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between">
+                <span className="text-muted-foreground">Annual run rate</span>
+                <span className="font-medium text-navy">
+                  {formatAud(metrics.margin * 52)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Bond float */}
@@ -291,100 +466,6 @@ export default function DashboardPage() {
                   width: `${Math.min(100, (propertyCount / PORTFOLIO_TARGET) * 100)}%`,
                 }}
               />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Upcoming events */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 font-heading text-xl text-navy">
-              <CalendarClock className="h-4 w-4 text-sage" /> Next 14 days
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            {events.length === 0 ? (
-              <p className="px-4 pb-4 font-body text-sm text-muted-foreground">
-                Nothing scheduled in the next fortnight.
-              </p>
-            ) : (
-              events.map((event, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 border-b border-stone px-4 py-2.5 last:border-b-0"
-                >
-                  <event.icon className="h-4 w-4 shrink-0 text-sage" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-body text-sm font-medium text-navy">
-                      {event.label}
-                    </p>
-                    <p className="truncate font-body text-xs text-muted-foreground">
-                      {event.detail}
-                    </p>
-                  </div>
-                  {event.badge ? (
-                    <Badge
-                      className={cn('capitalize', event.badge.className)}
-                    >
-                      {event.badge.text}
-                    </Badge>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Weekly margin snapshot */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="font-heading text-xl text-navy">
-              Weekly Margin Snapshot
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5 font-body text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                Full-occupancy potential
-              </span>
-              <span className="font-medium text-navy">
-                {formatAud(metrics.fullMargin)}/wk
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Current margin</span>
-              <span className="font-medium text-navy">
-                {formatAud(metrics.margin)}/wk
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Cost of vacancies</span>
-              <span
-                className={cn(
-                  'font-medium',
-                  vacancyCostWeekly > 0 ? 'text-vacant' : 'text-sage',
-                )}
-              >
-                {vacancyCostWeekly > 0
-                  ? `−${formatAud(vacancyCostWeekly)}/wk`
-                  : 'None'}
-              </span>
-            </div>
-            <div className="border-t border-stone pt-2.5">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Monthly run rate</span>
-                <span className="font-medium text-navy">
-                  {formatAud(monthlyRunRate)}
-                </span>
-              </div>
-              <div className="mt-2 flex justify-between">
-                <span className="text-muted-foreground">Annual run rate</span>
-                <span className="font-medium text-navy">
-                  {formatAud(metrics.margin * 52)}
-                </span>
-              </div>
             </div>
           </CardContent>
         </Card>

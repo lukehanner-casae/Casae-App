@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Plus, Search, Users, X } from 'lucide-react'
+import { Check, DoorOpen, Plus, Search, Users, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ListSkeleton from '@/components/ListSkeleton'
 import BondFloatPanel from '@/components/lodgers/BondFloatPanel'
 import LodgerFormDialog from '@/components/lodgers/LodgerFormDialog'
+import LogVacateNoticeDialog from '@/components/vacancies/LogVacateNoticeDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,13 +28,22 @@ import {
 import { useLodgers } from '@/hooks/use-lodgers'
 import { useProperties } from '@/hooks/use-properties'
 import { daysUntil, formatAud, formatDate, lodgerName } from '@/lib/format'
+import { isResident } from '@/lib/metrics'
 import { cn } from '@/lib/utils'
 import type { LodgerStatus } from '@/lib/types'
 
 const statusBadge: Record<LodgerStatus, string> = {
   current: 'border-sage/40 bg-sage/10 text-sage',
+  notice_given: 'border-vacant/40 bg-red-50 text-vacant',
   pending: 'border-warning/50 bg-amber-50 text-amber-700',
   former: 'border-stone bg-muted text-muted-foreground',
+}
+
+const statusLabel: Record<LodgerStatus, string> = {
+  current: 'Current',
+  notice_given: 'Notice given',
+  pending: 'Pending',
+  former: 'Former',
 }
 
 function MoveOutCell({ date }: { date: string | null }) {
@@ -57,7 +67,7 @@ export default function LodgersPage() {
   const { data: lodgers, isLoading } = useLodgers()
   const { data: properties } = useProperties()
   const [propertyFilter, setPropertyFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('current')
+  const [statusFilter, setStatusFilter] = useState('resident')
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
@@ -77,7 +87,9 @@ export default function LodgersPage() {
     if (propertyFilter !== 'all') {
       list = list.filter((l) => l.room?.property_id === propertyFilter)
     }
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'resident') {
+      list = list.filter((l) => isResident(l))
+    } else if (statusFilter !== 'all') {
       list = list.filter((l) => l.status === statusFilter)
     }
     return list
@@ -88,13 +100,22 @@ export default function LodgersPage() {
       <PageHeader
         title="Lodgers"
         actions={
-          <LodgerFormDialog
-            trigger={
-              <Button size="sm">
-                <Plus className="h-4 w-4" /> Add lodger
-              </Button>
-            }
-          />
+          <>
+            <LogVacateNoticeDialog
+              trigger={
+                <Button size="sm" variant="secondary">
+                  <DoorOpen className="h-4 w-4" /> Log vacate notice
+                </Button>
+              }
+            />
+            <LodgerFormDialog
+              trigger={
+                <Button size="sm">
+                  <Plus className="h-4 w-4" /> Add lodger
+                </Button>
+              }
+            />
+          </>
         }
       />
 
@@ -129,7 +150,9 @@ export default function LodgersPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="resident">Living in</SelectItem>
             <SelectItem value="current">Current</SelectItem>
+            <SelectItem value="notice_given">Notice given</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="former">Former</SelectItem>
             <SelectItem value="all">All</SelectItem>
@@ -168,7 +191,7 @@ export default function LodgersPage() {
               <TableHead>Room</TableHead>
               <TableHead className="text-right">Rent/wk</TableHead>
               <TableHead>Move-in</TableHead>
-              <TableHead>Move-out</TableHead>
+              <TableHead>Vacate / move-out</TableHead>
               <TableHead>Bond</TableHead>
               <TableHead>Agreement</TableHead>
               <TableHead>Phone</TableHead>
@@ -187,12 +210,9 @@ export default function LodgersPage() {
                     {lodger.status !== 'current' && (
                       <Badge
                         variant="outline"
-                        className={cn(
-                          'ml-2 capitalize',
-                          statusBadge[lodger.status],
-                        )}
+                        className={cn('ml-2', statusBadge[lodger.status])}
                       >
-                        {lodger.status}
+                        {statusLabel[lodger.status]}
                       </Badge>
                     )}
                   </TableCell>
@@ -205,7 +225,9 @@ export default function LodgersPage() {
                   </TableCell>
                   <TableCell>{formatDate(lodger.move_in_date)}</TableCell>
                   <TableCell>
-                    <MoveOutCell date={lodger.expected_move_out} />
+                    <MoveOutCell
+                      date={lodger.room?.next_vacate_date ?? lodger.expected_move_out}
+                    />
                   </TableCell>
                   <TableCell>
                     {lodger.bond_returned_date ? (

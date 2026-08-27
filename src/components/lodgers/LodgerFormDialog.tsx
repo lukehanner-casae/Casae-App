@@ -247,7 +247,11 @@ export default function LodgerFormDialog({
                   {rooms.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.room_name}
-                      {r.status === 'vacant' ? ' (vacant)' : ''}
+                      {r.status === 'vacant'
+                        ? ' (vacant)'
+                        : r.status === 'notice_given'
+                          ? ' (vacating)'
+                          : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -348,6 +352,9 @@ export default function LodgerFormDialog({
               <SelectContent>
                 <SelectItem value="current">Current</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="notice_given" disabled={form.status !== 'notice_given'}>
+                  Notice given (via Log vacate notice)
+                </SelectItem>
                 <SelectItem value="former">Former</SelectItem>
               </SelectContent>
             </Select>
